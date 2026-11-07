@@ -1,0 +1,40 @@
+name: Refresh data
+
+on:
+  schedule:
+    - cron: '0 14 1 2 *'
+  workflow_dispatch:
+    inputs:
+      force:
+        description: Rebuild even if Statistics Canada has no new January tables
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+          cache: pip
+          cache-dependency-path: pipeline/requirements.txt
+      - run: pip install -r pipeline/requirements.txt
+      - id: build
+        run: python pipeline/refresh.py ${{ inputs.force && '--force' || '' }}
+      - if: steps.build.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          branch: data-refresh
+          title: Yearly data refresh
+          commit-message: Refresh data from Statistics Canada and OpenStreetMap
+          body: Built by the Refresh data workflow, and every check passed. Merge to publish.
+          add-paths: |
+            site/data
+            pipeline/last_release.txt

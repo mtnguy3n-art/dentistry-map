@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="en-CA">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dental Market Movers</title>
+<meta name="description" content="Where people are moving in Canada, who they are and how many dental offices serve them.">
+<link rel="stylesheet" href="assets/styles.css">
+</head>
+<body>
+<div class="dm">
+  <header id="top">
+    <h1>Dental Market Movers: Canada</h1>
+    <p class="dm-lede">Best fit in <span data-draw="t-scope">—</span>: <b data-draw="t-market" data-field="market">—</b>, with <b data-draw="t-rate" data-field="arr_office">—</b> new residents per dental office in <span data-draw="t-period">—</span>. Canada's growth then slowed to <b data-draw="t-now" data-field="growth_latest">—</b> in the latest year, from <b data-draw="t-prev" data-field="growth_prior">—</b>, so check Latest signals before you commit a budget.</p>
+  </header>
+
+  <div class="dm-tabs" role="tablist">
+    <button class="dm-tab" role="tab" data-tab="markets" aria-selected="true">Where to advertise</button>
+    <button class="dm-tab" role="tab" data-tab="neighbourhoods" aria-selected="false">Postal areas to target</button>
+    <button class="dm-tab" role="tab" data-tab="signals" aria-selected="false">Latest signals</button>
+  </div>
+
+  <div class="dm-filters">
+    <div class="dm-city">
+      <label for="dm-city">Find a city</label>
+      <input id="dm-city" type="text" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="dm-city-list" autocomplete="off" spellcheck="false" placeholder="For example, Châteauguay">
+      <ul id="dm-city-list" role="listbox" aria-label="Matching cities" hidden></ul>
+    </div>
+    <label for="dm-prov">Province
+      <select id="dm-prov" class="dash-select" data-draw="provs"></select>
+    </label>
+    <label for="dm-seg">Main patient group
+      <select id="dm-seg" class="dash-select dm-ctl" data-param="seg">
+        <option value="">All groups</option>
+        <option>Young families</option>
+        <option>Older professionals</option>
+        <option>Older working-age</option>
+        <option>Retirees</option>
+        <option>Young adults</option>
+      </select>
+    </label>
+    <label for="dm-min">Market size
+      <select id="dm-min" class="dash-select dm-ctl" data-param="minpop">
+        <option value="0">Any size</option>
+        <option value="25000">25,000 people or more</option>
+        <option value="50000">50,000 people or more</option>
+        <option value="100000">100,000 people or more</option>
+        <option value="500000">500,000 people or more</option>
+      </select>
+    </label>
+    <button class="dm-btn dm-reset">Clear filters</button>
+  </div>
+
+  <section id="city-card" class="dm-card" aria-label="Selected city" hidden>
+    <div class="dm-head">
+      <div><h2 data-draw="city-name" data-field="name">—</h2><p class="dm-note" data-draw="city-sub">—</p></div>
+      <button class="dm-btn dm-city-clear">Clear city</button>
+    </div>
+    <div class="dm-kpis">
+      <div><span class="dm-note">People, <span data-label="age_year">2025</span></span><br><span class="dm-num" data-draw="city-pop" data-field="pop">—</span></div>
+      <div><span class="dm-note">Growth, 2021 to <span data-label="age_year">2025</span></span><br><span class="dm-num" data-draw="city-growth" data-field="growth">—</span></div>
+      <div><span class="dm-note">Dental offices, <span data-label="offices">June 2026</span></span><br><span class="dm-num" data-draw="city-off" data-field="offices">—</span></div>
+      <div><span class="dm-note">People per dental office</span><br><span class="dm-num" data-draw="city-ppo" data-field="people_office">—</span></div>
+    </div>
+    <p class="dm-note" data-draw="city-compare">—</p>
+    <p class="dm-note" data-draw="city-moves">—</p>
+    <div class="dm-scroll short" data-city-table>
+      <table>
+        <thead><tr><th data-field="fsa"><button>Postal area</button></th><th data-field="segment"><button>Main group</button></th><th class="n" data-field="pop"><button>People, 2021</button></th><th class="n" data-field="income"><button>Household income</button></th><th class="n" data-field="mover_rate"><button>Moved in past year</button></th><th class="n" data-field="newcomer_rate"><button>New to the municipality</button></th></tr></thead>
+        <tbody data-draw="city-postal"></tbody>
+      </table>
+    </div>
+    <p class="dm-note" data-draw="city-postal-note">—</p>
+    <div class="dm-actions">
+      <button class="dm-btn dm-city-copy">Copy this city's postal codes</button>
+      <button class="dm-btn dm-go" data-goto="neighbourhoods">See the market's postal areas</button>
+      <span class="dm-note dm-city-copied" hidden>Copied. Paste them into your ad or mail campaign.</span>
+    </div>
+  </section>
+
+  <section id="markets" class="dm-page">
+    <div class="dm-kpis">
+      <div class="dm-card dm-kpi"><span>Net new residents</span><span class="dm-num" data-draw="k-net" data-field="net">—</span><span class="dm-note">Everyone who moved in minus everyone who left, <span data-draw="k-period">—</span></span></div>
+      <div class="dm-card dm-kpi"><span>New residents (estimate)</span><span class="dm-num" data-draw="k-arr" data-field="arrivals">—</span><span class="dm-note">Immigrants plus net gains from other parts of Canada and from temporary residents</span></div>
+      <div class="dm-card dm-kpi"><span>People leaving (estimate)</span><span class="dm-num" data-draw="k-dep" data-field="departures">—</span><span class="dm-note">Emigration plus net losses to other parts of Canada and of temporary residents</span></div>
+      <div class="dm-card dm-kpi"><span>Dental offices</span><span class="dm-num" data-draw="k-off" data-field="offices">—</span><span class="dm-note">Offices with employees, <span data-label="offices">June 2026</span></span></div>
+    </div>
+
+    <div class="dm-two">
+      <div class="dm-card" id="map-card">
+        <div class="dm-filters" style="justify-content:space-between">
+          <div><h2>Market map</h2><p class="dm-note">Click a market to see its detail. Choosing a province zooms the map.</p></div>
+          <label for="dm-metric">Colour by
+            <select id="dm-metric" class="dash-select dm-ctl" data-param="metric">
+              <option value="net">Net movement per 1,000 people</option>
+              <option value="office">New residents per dental office</option>
+              <option value="seg">Main patient group</option>
+            </select>
+          </label>
+        </div>
+        <div class="dm-chart dm-map" data-draw="map">—</div>
+      </div>
+
+      <div class="dm-card" id="selected">
+        <h2 data-draw="d-name" data-field="market">—</h2>
+        <div class="dm-pills"><span class="dm-pill" data-draw="d-action" data-field="action">—</span><span class="dm-pill" data-draw="d-seg" data-field="segment">—</span></div>
+        <div class="dm-stats">
+          <div><span>Net movement per 1,000 people</span><span class="dm-num" data-draw="d-rate" data-field="net_rate">—</span></div>
+          <div><span>People per dental office</span><span class="dm-num" data-draw="d-ppo" data-field="people_office">—</span></div>
+          <div><span>New residents per office</span><span class="dm-num" data-draw="d-apo" data-field="arr_office">—</span></div>
+          <div><span>Median household income, 2020</span><span class="dm-num" data-draw="d-inc" data-field="income">—</span></div>
+        </div>
+        <div class="dm-play">
+          <p data-action="Growing"><b>Spend on new-patient offers.</b> People are arriving faster than they leave, and many have no local dentist yet.</p>
+          <p data-action="High turnover"><b>Run two campaigns.</b> Many people arrive and many leave. Advertise to newcomers, and remind current patients to book so you keep the ones who stay.</p>
+          <p data-action="Shrinking"><b>Protect your patient base.</b> More people leave than arrive. Favour recall reminders and referrals over new-patient ads.</p>
+          <p data-action="Steady"><b>Target by patient group.</b> Movement is modest, so the message matters more than reach.</p>
+          <p data-play="Young families"><b>Lead with:</b> children's first visits, cleanings, sealants, early orthodontic checks, and family booking. Reach parents through schools, community groups and local social media.</p>
+          <p data-play="Older professionals"><b>Lead with:</b> crowns, clear aligners, whitening, veneers and implants, with early or evening hours. Search ads and premium local media suit this group.</p>
+          <p data-play="Older working-age"><b>Lead with:</b> crowns, gum care and fixing long-standing problems, with clear pricing and payment plans. Flyers and local radio suit this group.</p>
+          <p data-play="Retirees"><b>Lead with:</b> implants, dentures, gum care and accessible offices, and say if you accept the Canadian Dental Care Plan. Direct mail and community papers suit this group.</p>
+          <p data-play="Young adults"><b>Lead with:</b> simple first-visit booking, emergency care, whitening and aligners. Mobile search and online booking suit this group.</p>
+          <button class="dm-btn dm-go" data-goto="neighbourhoods">See postal areas in this market</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="dm-three">
+      <div class="dm-card"><h3>How people moved</h3><p class="dm-note">Net people, <span data-draw="k-period2">—</span>. Only immigrants and emigration are true one-way counts.</p><div class="dm-chart" data-draw="d-streams">—</div></div>
+      <div class="dm-card"><h3>Who moved, by life stage</h3><p class="dm-note">Net people by age group, same period. Ages stand in for life stage.</p><div class="dm-chart" data-draw="d-ages">—</div></div>
+      <div class="dm-card"><h3>Who lives here, <span data-label="age_year">2025</span></h3><p class="dm-note">Share of residents by age group, compared with the wider area.</p><div class="dm-chart" data-draw="d-mix">—</div></div>
+    </div>
+
+    <div class="dm-two">
+      <div class="dm-card"><h3>Six-year trend</h3><p class="dm-note">Net people per year. A recent swing matters more than the average.</p><div class="dm-chart" data-draw="d-trend">—</div></div>
+      <div class="dm-card"><h3>Towns and cities in this market</h3><p class="dm-note">Places of 5,000 people or more. Growth is 2021 to <span data-label="age_year">2025</span>. Offices are <span data-label="offices">June 2026</span>.</p>
+        <div class="dm-scroll short">
+          <table data-row-key="id" aria-label="Towns and cities in the selected market">
+            <thead><tr><th data-field="name"><button>Place</button></th><th class="n" data-field="pop"><button>People</button></th><th class="n" data-field="growth"><button>Growth</button></th><th class="n" data-field="offices"><button>Offices</button></th><th class="n" data-field="people_office"><button>People per office</button></th></tr></thead>
+            <tbody data-draw="d-towns"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="dm-card" id="metro-card">
+      <h3>Where movers come from: <span data-draw="m-name">—</span></h3>
+      <p class="dm-note">People who moved within Canada, in and out of this metro area, <span data-label="flows">2023/24</span>. These are the only true two-way counts in the dashboard.</p>
+      <div class="dm-stats">
+        <div><span>Moved in</span><span class="dm-num" data-draw="m-in" data-field="moved_in">—</span></div>
+        <div><span>Moved out</span><span class="dm-num" data-draw="m-out" data-field="moved_out">—</span></div>
+      </div>
+      <p class="dm-note">Most often from: <span data-draw="m-from" data-field="from_top">—</span>. Most often to: <span data-draw="m-to" data-field="to_top">—</span>.</p>
+    </div>
+
+    <div class="dm-card" id="ranking">
+      <h2>All markets, ranked</h2>
+      <p class="dm-note">Sorted by new residents per dental office. Click a column to re-sort, or a row to open that market.</p>
+      <div class="dm-scroll">
+        <table data-row-key="id" aria-label="Markets ranked">
+          <thead><tr>
+            <th data-field="market"><button>Market</button></th><th data-field="prov"><button>Prov.</button></th><th data-field="action"><button>Status</button></th><th data-field="segment"><button>Main group</button></th><th class="n" data-field="pop"><button>People</button></th><th class="n" data-field="net_rate"><button>Net per 1,000</button></th><th class="n" data-field="arrivals"><button>New residents</button></th><th class="n" data-field="departures"><button>Leaving</button></th><th class="n" data-field="offices"><button>Offices</button></th><th class="n" data-field="people_office"><button>People per office</button></th><th class="n" data-field="arr_office"><button>New residents per office</button></th>
+          </tr></thead>
+          <tbody data-draw="mtable"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section id="neighbourhoods" class="dm-page" hidden>
+    <div class="dm-filters">
+      <label for="dm-mkt">Market
+        <select id="dm-mkt" class="dash-select" data-draw="mkts"></select>
+      </label>
+      <label for="dm-hm">Colour by
+        <select id="dm-hm" class="dash-select dm-ctl" data-param="hmetric">
+          <option value="movers">Share who moved in the past year</option>
+          <option value="seg">Main patient group</option>
+        </select>
+      </label>
+      <label for="dm-pins">Dentists on map
+        <select id="dm-pins" class="dash-select dm-ctl" data-param="pins">
+          <option value="on">Show known dentists (incomplete)</option>
+          <option value="off">Hide</option>
+        </select>
+      </label>
+      <button class="dm-btn dm-copy">Copy postal codes shown</button>
+      <span class="dm-note dm-copied" hidden>Copied. Paste them into your ad or mail campaign.</span>
+    </div>
+    <p class="dm-note">Use these three-character postal areas in Canada Post Neighbourhood Mail and in Google or Meta location targeting. Figures come from the 2021 Census, the newest data at this level. The moving rates cover May 2020 to May 2021, a pandemic year, so read them as which areas usually turn over, not who moved this year.</p>
+    <div class="dm-kpis">
+      <div class="dm-card dm-kpi"><span>Postal areas</span><span class="dm-num" data-draw="h-n" data-field="areas">—</span></div>
+      <div class="dm-card dm-kpi"><span>Residents, 2021</span><span class="dm-num" data-draw="h-pop" data-field="pop">—</span></div>
+      <div class="dm-card dm-kpi"><span>Moved home in the past year</span><span class="dm-num" data-draw="h-mov" data-field="movers">—</span></div>
+      <div class="dm-card dm-kpi"><span>Of those, new to the municipality</span><span class="dm-num" data-draw="h-new" data-field="newcomers">—</span></div>
+    </div>
+    <div class="dm-card"><h2 data-draw="h-title" data-field="market">—</h2><div class="dm-chart dm-map" data-draw="hmap">—</div><p class="dm-note" data-draw="h-pins">—</p></div>
+    <div class="dm-card">
+      <h2>Postal areas, ranked</h2>
+      <p class="dm-note">Sorted by the number of people who moved home in the past year. The main patient group filter above applies here too.</p>
+      <div class="dm-scroll">
+        <table data-row-key="fsa" aria-label="Postal areas">
+          <thead><tr>
+            <th data-field="fsa"><button>Postal area</button></th><th data-field="place"><button>Place</button></th><th data-field="segment"><button>Main group</button></th><th class="n" data-field="pop"><button>People</button></th><th class="n" data-field="movers1"><button>Moved, past year</button></th><th class="n" data-field="mover_rate"><button>% moved</button></th><th class="n" data-field="newcomer_rate"><button>% new to city</button></th><th class="n" data-field="arrived5_rate"><button>% new in 5 years</button></th><th class="n" data-field="recent_imm"><button>% recent immigrants</button></th><th class="n" data-field="income"><button>Household income</button></th><th class="n" data-field="renter"><button>% renters</button></th><th class="n" data-field="degree"><button>% with degree</button></th>
+          </tr></thead>
+          <tbody data-draw="htable"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section id="signals" class="dm-page" hidden>
+    <div class="dm-card" id="prov-now">
+      <h2 data-draw="s-head">Population growth</h2>
+      <p class="dm-note">Growth in the year to <span data-label="july">July 2026</span> against the year before. This is the newest migration-driven signal, but it stops at province level.</p>
+      <div class="dm-chart" data-draw="provchart">—</div>
+    </div>
+    <div class="dm-two">
+      <div class="dm-card">
+        <h2>Homes being started</h2>
+        <p class="dm-note">Units started over the last 12 months, to <span data-label="housing">September 2026</span>. New homes bring new residents. Houses and row homes tend to mean families, and apartments tend to mean renters.</p>
+        <div class="dm-scroll">
+          <table data-row-key="metro" aria-label="Housing starts">
+            <thead><tr><th data-field="metro"><button>Metro area</button></th><th class="n" data-field="starts_12m"><button>Units started</button></th><th class="n" data-field="change"><button>Change on prior 12 months</button></th><th class="n" data-field="family_share"><button>% houses and row homes</button></th></tr></thead>
+            <tbody data-draw="htbl"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="dm-card">
+        <h2>Moves between metro areas</h2>
+        <p class="dm-note">People moving within Canada, <span><span data-label="flows">2023/24</span></span>. Shows which feeder cities to mention or target.</p>
+        <div class="dm-scroll">
+          <table data-row-key="metro" aria-label="Metro moves">
+            <thead><tr><th data-field="metro"><button>Metro area</button></th><th class="n" data-field="moved_in"><button>In</button></th><th class="n" data-field="moved_out"><button>Out</button></th><th class="n" data-field="net"><button>Net</button></th><th data-field="from_top"><button>Most came from</button></th></tr></thead>
+            <tbody data-draw="ftbl"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <details id="method">
+    <summary>How this works and what it leaves out</summary>
+    <dl>
+      <dt>Market</dt><dd>A Statistics Canada census division: a county, regional municipality or equivalent. Unnamed divisions take the name of their largest town.</dd>
+      <dt>New residents and people leaving</dt><dd>Statistics Canada publishes only net moves within Canada at this level, so both figures are estimates and undercount real movement. New residents are immigrants plus any net gain from domestic moves and temporary residents. People leaving are net emigration plus any net loss from those two.</dd>
+      <dt>Status</dt><dd>High turnover: at least <span data-draw="c-arr">—</span> new residents and <span data-draw="c-dep">—</span> people leaving per 1,000. Growing: net gain of at least <span data-draw="c-net">—</span> per 1,000. Shrinking: net loss. Steady: everything else.</dd>
+      <dt>Main patient group</dt><dd>The age group most over-represented compared with Canada. Young families: ages 0–14 and 30–44. Young adults: 15–29. Retirees: 65 and over. Ages 45–64 count as older professionals where household income or the share with a university degree is at or above the Canadian figure, and as older working-age otherwise.</dd>
+      <dt>Treatment suggestions</dt><dd>These are general marketing starting points, not clinical guidance or Statistics Canada data. Check your provincial dental regulator's advertising rules before using testimonials, comparisons or discounts.</dd>
+      <dt>Left out</dt><dd>Age groups are a stand-in for household type, so a 35-year-old without children counts toward young families. Dental offices count businesses with employees, not dentists, and leave out solo practices with no staff. Current postal-area movement is not published for free. Move-out counts by postal area are not published at all.</dd>
+      <dt>Sources</dt><dd>Statistics Canada tables 17-10-0152, 17-10-0153, 17-10-0154, 17-10-0155, 17-10-0009, <span data-label="business_table">33-10-1176</span> and 34-10-0148, the 2021 Census Profile, and 2021 boundary files. Open Government Licence – Canada. Dentist pins: © OpenStreetMap contributors, available under the Open Database Licence (openstreetmap.org/copyright).</dd>
+    </dl>
+  </details>
+</div>
+<script src="assets/d3.min.js"></script>
+<script src="assets/dash.js"></script>
+<script src="assets/app.js"></script>
+</body>
+</html>

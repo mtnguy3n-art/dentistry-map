@@ -1,0 +1,12 @@
+.DS_Store
+__pycache__/
+.venv/
+pipeline/dl/
+pipeline/out/
+pipeline/run.log
+pipeline/report.json
+pipeline/work/*.csv
+pipeline/work/markets.pkl
+pipeline/work/all.pkl
+pipeline/work/stage2.json
+pipeline/work/stage3.json
