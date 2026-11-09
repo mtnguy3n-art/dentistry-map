@@ -56,6 +56,47 @@
     <button class="dm-btn dm-reset">Clear filters</button>
   </div>
 
+  <section id="clinic-card" class="dm-card" aria-label="Your clinic">
+    <div class="dm-head">
+      <div><h2 data-draw="clinic-name">Your clinic</h2><p class="dm-note" data-draw="clinic-sub">—</p></div>
+      <div class="dm-actions" data-clinic-on hidden>
+        <button class="dm-btn dm-clinic-area">Show the clinic's patient area</button>
+        <button class="dm-btn dm-clinic-edit">Change</button>
+        <button class="dm-btn dm-clinic-remove">Remove</button>
+      </div>
+    </div>
+    <form class="dm-clinic-form" data-clinic-off>
+      <label>Clinic name <input name="name" required autocomplete="off"></label>
+      <label class="dm-grow">Google Maps link, or latitude and longitude <input name="spot" required autocomplete="off" placeholder="Paste the link from the clinic's Google Maps page"></label>
+      <button class="dm-btn">Save</button>
+      <span class="dm-note dm-clinic-bad" hidden>No location found in that text. Copy the link from the clinic's own Google Maps page, or enter two numbers like 45.3561, -73.7179.</span>
+    </form>
+    <div data-clinic-on hidden>
+      <h3>What stands out</h3>
+      <ul class="dm-insights" data-draw="clinic-insights"></ul>
+      <div class="dm-stack">
+        <div>
+          <h3>Towns around the clinic</h3>
+          <div class="dm-scroll short">
+            <table data-row-key="id" aria-label="Towns around the clinic">
+              <thead><tr><th data-field="name"><button>Town</button></th><th data-field="fsas"><button>Postal areas</button></th><th class="n" data-field="km"><button>Distance</button></th><th class="n" data-field="growth"><button>Growth</button></th><th class="n" data-field="offices"><button>Offices</button></th><th class="n" data-field="people_office"><button>People per office</button></th><th data-field="segment"><button>Main group</button></th><th class="n" data-field="income"><button>Household income</button></th></tr></thead>
+              <tbody data-draw="clinic-towns"></tbody>
+            </table>
+          </div>
+          <p class="dm-note">Distance is straight-line to the middle of the postal areas. Growth is 2021 to <span data-label="age_year">2025</span> for the listed places. Income is from the 2021 Census.</p>
+        </div>
+        <div>
+          <h3>Nearest dental listings</h3>
+          <div class="dm-scroll short">
+            <table aria-label="Nearest dental listings"><thead><tr><th>Name</th><th class="n">Distance</th></tr></thead><tbody data-draw="clinic-rivals"></tbody></table>
+          </div>
+          <p class="dm-note">From OpenStreetMap, about a third complete, so use it as a sample, not a count. Map data © OpenStreetMap contributors.</p>
+        </div>
+      </div>
+      <p class="dm-note">Generated from the figures on this page. These are marketing starting points, not clinical guidance.</p>
+    </div>
+  </section>
+
   <section id="city-card" class="dm-card" aria-label="Selected city" hidden>
     <div class="dm-head">
       <div><h2 data-draw="city-name" data-field="name">—</h2><p class="dm-note" data-draw="city-sub">—</p></div>

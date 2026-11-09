@@ -618,6 +618,12 @@ dash.draw('hmap', (el) => {
   svg.selectAll('circle.pin').data(pins).join('circle').attr('class', 'pin').attr('cx', (x) => x.c[0]).attr('cy', (x) => x.c[1]).attr('r', 4)
     .style('fill', 'var(--color-fg)').style('stroke', 'var(--color-panel)').style('stroke-width', 2)
     .on('mousemove', (ev, x) => tip.show(ev, [x.r.name, ...(x.r.address ? [x.r.address] : []), 'OpenStreetMap listing'])).on('mouseleave', () => tip.hide());
+  const cc = clinic && proj([clinic.lon, clinic.lat]);
+  if (cc && cc[0] >= 0 && cc[0] <= w && cc[1] >= 0 && cc[1] <= h) {
+    svg.append('circle').attr('cx', cc[0]).attr('cy', cc[1]).attr('r', 8).style('fill', 'var(--c1)').style('stroke', 'var(--color-panel)').style('stroke-width', 3)
+      .on('mousemove', (ev) => tip.show(ev, [clinic.name, 'Your clinic'])).on('mouseleave', () => tip.hide());
+    svg.append('text').attr('x', cc[0] + 12).attr('y', cc[1] + 4).text(clinic.name).style('font-size', 'var(--cds-font-size-caption)').style('font-weight', 'var(--cds-font-weight-medium)').style('fill', 'var(--color-fg)').style('paint-order', 'stroke').style('stroke', 'var(--color-panel)').style('stroke-width', 3).style('pointer-events', 'none');
+  }
   if (hm) legendSwatches(el, SEG);
   else legendRamp(el, (t) => seq(ext[0] + t * (ext[1] - ext[0])), f.pct0(ext[0]), f.pct0(ext[1]) + ' moved in the past year');
 });
@@ -643,6 +649,110 @@ const newsList = (kind) => dash.draw('news-' + kind, (ul) => {
   }));
 });
 newsList('where'); newsList('services');
+
+/* your clinic: name and location stay in this browser's storage, never in the repository or the URL */
+const CLINIC_KEY = 'dm-clinic';
+let clinic = null, clinicEditing = false;
+try { clinic = JSON.parse(localStorage.getItem(CLINIC_KEY)); } catch (e) { clinic = null; }
+const clinicSave = (c) => {
+  clinic = c; clinicEditing = false;
+  try { if (c) localStorage.setItem(CLINIC_KEY, JSON.stringify(c)); else localStorage.removeItem(CLINIC_KEY); } catch (e) { /* kept for this visit only */ }
+  dash.setParams({});
+};
+const parseSpot = (s) => {
+  const m = s.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/) || s.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/) || s.match(/^\s*(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)\s*$/);
+  return m ? {lat: Number(m[1]), lon: Number(m[2])} : null;
+};
+const km = (a, b) => d3.geoDistance(a, b) * 6371;
+let clinicMemo = {};
+const clinicPlace = () => {
+  const g = D('map_neighbourhoods');
+  if (!clinic || !g) return null;
+  const key = clinic.lat + ',' + clinic.lon;
+  if (clinicMemo.key !== key) {
+    fixRings(g);
+    const ft = g.features.find((x) => d3.geoContains(x, [clinic.lon, clinic.lat])), fsa = ft ? ft.properties.CFSAUID : '';
+    const area = Object.keys(AREAS).find((k) => AREAS[k].groups.some((q) => q.fsas.includes(fsa))) || '';
+    clinicMemo = {key, val: {fsa, area, row: (D('neighbourhoods') || []).find((r) => r.fsa === fsa)}};
+  }
+  return clinicMemo.val;
+};
+/* listings within 30 m are taken to be the clinic itself */
+const clinicRivals = () => {
+  const d = D('dentists');
+  if (!clinic || !d) return [];
+  return d.map((r) => ({...r, km: km([clinic.lon, clinic.lat], [r.lon, r.lat])})).filter((r) => r.km > .03 && r.km <= 5).sort((x, y) => x.km - y.km);
+};
+const clinicTowns = () => {
+  const p = clinicPlace(), a = p && AREAS[p.area], n = D('neighbourhoods'), u = D('municipalities'), g = D('map_neighbourhoods');
+  if (!a || !n || !u || !g) return [];
+  return a.groups.map((q) => {
+    const rows = n.filter((r) => q.fsas.includes(r.fsa)), pl = u.filter((r) => q.places.includes(r.id));
+    const pop = d3.sum(rows, (r) => r.pop), ppop = d3.sum(pl, (r) => r.pop), off = d3.sum(pl, (r) => r.offices);
+    return {
+      id: q.label, name: q.label, fsas: q.fsas.join(' '), home: q.fsas.includes(p.fsa),
+      km: km([clinic.lon, clinic.lat], d3.geoCentroid({type: 'FeatureCollection', features: g.features.filter((x) => q.fsas.includes(x.properties.CFSAUID))})),
+      growth: ppop ? d3.sum(pl, (r) => r.pop * r.growth) / ppop : null,
+      offices: pl.length ? off : null, people_office: off ? Math.round(ppop / off) : null,
+      income: pop ? Math.round(d3.sum(rows, (r) => r.pop * r.income) / pop / 500) * 500 : null,
+      segment: rows.length ? d3.greatest(rows, (r) => r.pop).segment : null,
+    };
+  });
+};
+sorts['clinic-towns'] = {k: 'km', d: 1};
+document.querySelectorAll('.dm-clinic-form').forEach((fm) => fm.addEventListener('submit', (ev) => {
+  ev.preventDefault();
+  const spot = parseSpot(fm.elements.spot.value), name = fm.elements.name.value.trim();
+  fm.querySelectorAll('.dm-clinic-bad').forEach((e) => { e.hidden = !!spot; });
+  if (spot && name) clinicSave({name, ...spot});
+}));
+document.querySelectorAll('.dm-clinic-edit').forEach((b) => b.addEventListener('click', () => {
+  clinicEditing = true;
+  document.querySelectorAll('.dm-clinic-form').forEach((fm) => { fm.elements.name.value = clinic.name; fm.elements.spot.value = clinic.lat + ', ' + clinic.lon; });
+  dash.setParams({});
+}));
+document.querySelectorAll('.dm-clinic-remove').forEach((b) => b.addEventListener('click', () => clinicSave(null)));
+document.querySelectorAll('.dm-clinic-area').forEach((b) => b.addEventListener('click', () => {
+  const p = clinicPlace();
+  if (p && p.area) { cityIn.value = ''; dash.setParams({area: p.area, zones: '', city: '', market: AREAS[p.area].market}); }
+}));
+dash.onData(() => {
+  const p = clinicPlace();
+  document.querySelectorAll('[data-clinic-on]').forEach((e) => { e.hidden = !clinic || clinicEditing; });
+  document.querySelectorAll('[data-clinic-off]').forEach((e) => { e.hidden = !!clinic && !clinicEditing; });
+  document.querySelectorAll('.dm-clinic-area').forEach((e) => { e.hidden = !p || !p.area || P().area === p.area; });
+});
+dash.draw('clinic-name', (el) => { el.textContent = clinic ? clinic.name : 'Your clinic'; });
+dash.draw('clinic-sub', (el) => {
+  const p = clinicPlace();
+  el.textContent = !clinic ? 'Add a clinic to compare it with the towns and dental offices around it. It is saved in this browser only.' : !p ? '—' : `Postal area ${p.fsa || 'not found'}${p.area ? ', in the ' + AREAS[p.area].name : ''}. Saved in this browser only.`;
+});
+dash.draw('clinic-insights', (ul) => {
+  const p = clinicPlace(), towns = clinicTowns(), rv = clinicRivals(), out = [];
+  if (!p) { ul.replaceChildren(); return; }
+  if (p.row) out.push(`The clinic's postal area, ${p.fsa}, has ${f.int(p.row.pop)} residents (2021). The main patient group is ${p.row.segment}, and median household income is ${f.usd(p.row.income)}.`);
+  const n1 = rv.filter((r) => r.km <= 1).length, n2 = rv.filter((r) => r.km <= 2).length;
+  out.push(`${n1} other dental listings within 1 km and ${n2} within 2 km, including denturists and orthodontists. OpenStreetMap shows only about a third of offices, so expect more.`);
+  const others = towns.filter((t) => !t.home && t.growth != null);
+  const fast = d3.greatest(others, (t) => t.growth);
+  if (fast) out.push(`${fast.name} is growing fastest nearby (${f.spct(fast.growth)} from 2021), about ${f.dec(fast.km)} km away, with ${dash_(fast.people_office, f.int)} people per dental office.`);
+  const thin = d3.greatest(others.filter((t) => t.people_office), (t) => t.people_office);
+  if (thin && thin !== fast) out.push(`${thin.name} has the most people per dental office nearby (${f.int(thin.people_office)}), so it is the least served.`);
+  const rich = d3.greatest(towns.filter((t) => !t.home && t.income), (t) => t.income);
+  if (rich) out.push(`${rich.name} has the highest household income nearby (${f.usd(rich.income)}), the best fit for cosmetic treatments and injections.`);
+  const fam = towns.filter((t) => !t.home && t.segment === 'Young families').map((t) => t.name);
+  if (fam.length) out.push(`Young families are the main group in ${fam.join('; ')}. Lead with children's visits and family booking there.`);
+  const nn = news ? news.items.filter((r) => r.area === p.area).length : 0;
+  if (nn) out.push(`${nn} news items cover this area, mostly new housing. See News and trends.`);
+  if (!p.area) out.push('Nearby towns are compared only around Châteauguay and St-Bruno for now.');
+  ul.replaceChildren(...out.map((t) => { const li = document.createElement('li'); li.textContent = t; return li; }));
+});
+dash.draw('clinic-towns', (tb) => {
+  fill(tb, sorted('clinic-towns', clinicTowns()), 'id', [[(r) => (r.home ? r.name + ' (clinic)' : r.name)], [(r) => r.fsas], [(r) => (r.home ? '—' : f.dec(r.km) + ' km'), 'n'], [(r) => dash_(r.growth, f.spct), 'n'], [(r) => dash_(r.offices, f.int), 'n'], [(r) => dash_(r.people_office, f.int), 'n'], [(r) => (r.segment ? segCell(r.segment) : '—')], [(r) => dash_(r.income, f.usd), 'n']]);
+});
+dash.draw('clinic-rivals', (tb) => {
+  fill(tb, clinicRivals().slice(0, 12), 'name', [[(r) => r.name], [(r) => (r.km < 1 ? Math.round(r.km * 1000) + ' m' : f.dec(r.km) + ' km'), 'n']]);
+});
 
 /* latest signals */
 dash.draw('provchart', (el) => {
