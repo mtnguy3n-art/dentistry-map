@@ -817,9 +817,8 @@ document.querySelectorAll('.dm-hub-mine').forEach((b) => b.addEventListener('cli
 dash.onData(() => { document.querySelectorAll('.dm-hub-mine').forEach((b) => { b.hidden = !clinic; }); });
 if (location.hash.slice(1) === 'competition') openTab('competition');
 
-/* clinic search for the centre of the competition map */
-const hubIn = document.getElementById('dm-hub'), hubList = document.getElementById('dm-hub-list');
-let hubHits = [], placeIdx = null;
+/* clinic autocomplete: the centre of the competition map and the Your clinic form */
+let placeIdx = null;
 const placeOf = (r) => {
   if (!placeIdx) {
     placeIdx = new Map();
@@ -828,28 +827,64 @@ const placeOf = (r) => {
   }
   return placeIdx.get('c' + r.city_id) || placeIdx.get('m' + r.market_id) || '';
 };
-const hubOpen = (open) => { hubList.hidden = !open; hubIn.setAttribute('aria-expanded', String(open)); };
-const hubPick = (r) => { hubOpen(false); hubIn.value = ''; hubSet(r); };
-hubIn.addEventListener('input', () => {
-  const q = fold(hubIn.value), d = D('dentists') || [], sel = P().market;
-  if (q.length < 2) { hubOpen(false); return; }
-  hubHits = d.filter((r) => fold(`${r.name} ${r.address || ''} ${placeOf(r)}`).includes(q))
-    .sort((a, b) => (b.market_id === sel) - (a.market_id === sel) || a.name.localeCompare(b.name)).slice(0, 10);
-  hubList.replaceChildren(...(hubHits.length ? hubHits.map((r, i) => {
-    const li = document.createElement('li'), sp = document.createElement('span');
-    li.id = 'dm-hub-' + i; li.setAttribute('role', 'option'); li.setAttribute('aria-selected', 'false');
-    sp.textContent = [r.address, placeOf(r)].filter(Boolean).join(', ');
-    li.append(r.name, sp);
-    li.addEventListener('mousedown', (ev) => { ev.preventDefault(); hubPick(r); });
-    return li;
-  }) : [Object.assign(document.createElement('li'), {textContent: 'No dental listing matches. OpenStreetMap is missing many clinics.'})]));
-  if (!hubHits.length) hubList.firstChild.setAttribute('aria-disabled', 'true');
-  hubOpen(true);
+const nearestTo = (ref, n) => (D('dentists') || []).map((r) => ({...r, km: km([ref.lon, ref.lat], [r.lon, r.lat])})).sort((x, y) => x.km - y.km).slice(0, n);
+const inMarket = (id, n) => (D('dentists') || []).filter((r) => r.market_id === id).sort((x, y) => x.name.localeCompare(y.name)).slice(0, n);
+const shownMarket = () => { const a = areaNow(); return a ? a.market : P().market; };
+const clinicPicker = (input, list, onPick, suggest) => {
+  let hits = [], at = -1;
+  const open = (o) => { list.hidden = !o; input.setAttribute('aria-expanded', String(o)); if (!o) input.removeAttribute('aria-activedescendant'); };
+  const mark = (i) => {
+    at = i;
+    [...list.children].forEach((li, k) => {
+      li.setAttribute('aria-selected', String(k === i));
+      if (k === i) { input.setAttribute('aria-activedescendant', li.id); li.scrollIntoView({block: 'nearest'}); }
+    });
+  };
+  const pick = (r) => { open(false); onPick(r); };
+  const show = (rows, empty) => {
+    hits = rows; at = -1;
+    list.replaceChildren(...rows.map((r, i) => {
+      const li = document.createElement('li'), sp = document.createElement('span');
+      li.id = `${list.id}-${i}`; li.setAttribute('role', 'option'); li.setAttribute('aria-selected', 'false');
+      sp.textContent = [r.km != null ? toKm(r.km) + ' away' : '', r.address, placeOf(r)].filter(Boolean).join(' · ');
+      li.append(r.name, sp);
+      li.addEventListener('mousedown', (ev) => { ev.preventDefault(); pick(r); });
+      return li;
+    }));
+    if (!rows.length && empty) {
+      const li = Object.assign(document.createElement('li'), {textContent: empty});
+      li.setAttribute('aria-disabled', 'true'); list.appendChild(li);
+    }
+    open(rows.length > 0 || !!empty);
+  };
+  const search = () => {
+    const q = fold(input.value), sel = shownMarket();
+    if (q.length < 2) { show(suggest(), 'Type at least two letters of a clinic name, street or town.'); return; }
+    const words = q.split(' ');
+    show((D('dentists') || []).filter((r) => { const hay = ' ' + fold(`${r.name} ${r.address || ''} ${placeOf(r)}`); return words.every((w) => hay.includes(' ' + w)); })
+      .sort((x, y) => (y.market_id === sel) - (x.market_id === sel) || x.name.localeCompare(y.name)).slice(0, 10), 'No dental listing matches. OpenStreetMap is missing many clinics.');
+  };
+  input.addEventListener('input', search);
+  input.addEventListener('focus', search);
+  input.addEventListener('blur', () => open(false));
+  input.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Escape') { open(false); return; }
+    if (list.hidden || !hits.length) return;
+    if (ev.key === 'ArrowDown') { ev.preventDefault(); mark((at + 1) % hits.length); }
+    if (ev.key === 'ArrowUp') { ev.preventDefault(); mark((at - 1 + hits.length) % hits.length); }
+    if (ev.key === 'Enter') { ev.preventDefault(); pick(hits[Math.max(at, 0)]); }
+  });
+};
+const hubIn = document.getElementById('dm-hub');
+clinicPicker(hubIn, document.getElementById('dm-hub-list'), (r) => { hubIn.value = ''; hubSet(r); }, () => {
+  const ref = hubNow() || clinic;
+  return ref ? nearestTo(ref, 10).filter((r) => r.km > .03) : shownMarket() ? inMarket(shownMarket(), 10) : [];
 });
-hubIn.addEventListener('blur', () => hubOpen(false));
-hubIn.addEventListener('keydown', (ev) => {
-  if (ev.key === 'Escape') hubOpen(false);
-  if (ev.key === 'Enter' && hubHits.length && !hubList.hidden) { ev.preventDefault(); hubPick(hubHits[0]); }
+document.querySelectorAll('.dm-clinic-form').forEach((fm) => {
+  clinicPicker(fm.elements.name, fm.querySelector('[role=listbox]'), (r) => {
+    fm.elements.name.value = r.name; fm.elements.spot.value = `${r.lat}, ${r.lon}`;
+    fm.querySelectorAll('.dm-clinic-bad').forEach((e) => { e.hidden = true; });
+  }, () => (clinic ? nearestTo(clinic, 10) : shownMarket() ? inMarket(shownMarket(), 10) : []));
 });
 
 dash.draw('hub-name', (el) => { const h = hubNow(); el.textContent = h ? `Competition around ${h.name}` : 'Competition map'; });

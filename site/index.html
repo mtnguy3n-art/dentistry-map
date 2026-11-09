@@ -68,8 +68,12 @@
       </div>
     </div>
     <form class="dm-clinic-form" data-clinic-off>
-      <label>Clinic name <input name="name" required autocomplete="off"></label>
-      <label class="dm-grow">Google Maps link, or latitude and longitude <input name="spot" required autocomplete="off" placeholder="Paste the link from the clinic's Google Maps page"></label>
+      <div class="dm-city">
+        <label for="dm-cname">Clinic name</label>
+        <input id="dm-cname" name="name" type="text" required role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="dm-cname-list" autocomplete="off" spellcheck="false" placeholder="Start typing to pick a listed clinic">
+        <ul id="dm-cname-list" role="listbox" aria-label="Matching clinics" hidden></ul>
+      </div>
+      <label class="dm-grow">Location: filled in when you pick a clinic, or paste its Google Maps link <input name="spot" required autocomplete="off" placeholder="Google Maps link, or latitude and longitude"></label>
       <button class="dm-btn">Save</button>
       <span class="dm-note dm-clinic-bad" hidden>No location found in that text. Copy the link from the clinic's own Google Maps page, or enter two numbers like 45.5017, -73.5673.</span>
     </form>
