@@ -29,6 +29,57 @@ dash.calc('hood_totals', {
 });
 
 const T = {arr: 15, dep: 10, net: 10};
+/* patient areas: nearby postal areas grouped by town; `on` groups are the suggested area, within about 15 minutes' drive along roads and river crossings */
+const AREAS = {
+  chateauguay: {
+    name: 'Châteauguay area', town: 'Châteauguay', market: '2467',
+    note: 'The suggestion leaves out the West Island: it looks close on the map, but it is across Lac Saint-Louis.',
+    groups: [
+      {label: 'Châteauguay', fsas: ['J6J', 'J6K'], places: ['2467050'], on: true},
+      {label: 'Mercier', fsas: ['J6R'], places: ['2467045'], on: true},
+      {label: 'Beauharnois, Léry, Sainte-Martine', fsas: ['J6N'], places: ['2470022', '2470012'], on: true},
+      {label: 'Saint-Constant, Kahnawake', fsas: ['J5A'], places: ['2467035', '2467802'], on: true},
+      {label: 'Sainte-Catherine', fsas: ['J5C'], places: ['2467030']},
+      {label: 'Delson', fsas: ['J5B'], places: ['2467025']},
+      {label: 'La Prairie, Candiac, Saint-Philippe', fsas: ['J5R'], places: ['2467015', '2467020', '2467010']},
+      {label: 'Salaberry-de-Valleyfield', fsas: ['J6S', 'J6T'], places: ['2470052']},
+      {label: 'LaSalle, across the Mercier bridge', fsas: ['H8N', 'H8P', 'H8R'], places: []},
+    ],
+  },
+  'st-bruno': {
+    name: 'St-Bruno area', town: 'Saint-Bruno-de-Montarville', market: '2458',
+    note: 'The suggestion leaves out towns across the Richelieu, such as Beloeil. Longueuil does not split its offices by borough, so its postal areas count toward people moving but not toward offices.',
+    groups: [
+      {label: 'Saint-Bruno-de-Montarville', fsas: ['J3V'], places: ['2458037'], on: true},
+      {label: 'Saint-Basile-le-Grand', fsas: ['J3N'], places: ['2457020'], on: true},
+      {label: 'Saint-Hubert (Longueuil)', fsas: ['J3Y', 'J3Z'], places: [], on: true},
+      {label: 'Boucherville', fsas: ['J4B'], places: ['2458033'], on: true},
+      {label: 'Sainte-Julie', fsas: ['J3E'], places: ['2459010'], on: true},
+      {label: 'Chambly, Carignan', fsas: ['J3L'], places: ['2457005', '2457010'], on: true},
+      {label: 'Beloeil, McMasterville, Saint-Amable', fsas: ['J3G'], places: ['2457040', '2457025', '2459015']},
+      {label: 'Mont-Saint-Hilaire, Otterburn Park', fsas: ['J3H'], places: ['2457035', '2457030']},
+      {label: 'Varennes', fsas: ['J3X'], places: ['2459020']},
+      {label: 'Other nearby Longueuil', fsas: ['J4M', 'J4N', 'J4T'], places: []},
+      {label: 'Brossard', fsas: ['J4W', 'J4X', 'J4Y', 'J4Z'], places: ['2458007']},
+    ],
+  },
+};
+const areaNow = () => AREAS[P().area] || null;
+const areaSuggested = (a) => a.groups.filter((g) => g.on).flatMap((g) => g.fsas);
+const areaFsas = () => {
+  const a = areaNow(), z = P().zones;
+  if (!a) return [];
+  if (!z) return areaSuggested(a);
+  const all = a.groups.flatMap((g) => g.fsas);
+  return z.split(',').filter((x) => all.includes(x));
+};
+const areaGroups = () => { const a = areaNow(), on = new Set(areaFsas()); return a ? a.groups.filter((g) => g.fsas.every((x) => on.has(x))) : []; };
+const areaSet = (fsas) => {
+  const a = areaNow(), d = areaSuggested(a);
+  const same = fsas.length === d.length && d.every((x) => fsas.includes(x));
+  dash.setParams({zones: same ? '' : fsas.length ? fsas.join(',') : 'none'});
+};
+const areaToggle = (g, on) => { const now = areaFsas().filter((x) => !g.fsas.includes(x)); areaSet(on ? [...now, ...g.fsas] : now); };
 const SEG = ['Young families', 'Young adults', 'Older professionals', 'Older working-age', 'Retirees'];
 const PROV = {NL: 'Newfoundland and Labrador', PE: 'Prince Edward Island', NS: 'Nova Scotia', NB: 'New Brunswick', QC: 'Quebec', ON: 'Ontario', MB: 'Manitoba', SK: 'Saskatchewan', AB: 'Alberta', BC: 'British Columbia', YT: 'Yukon', NT: 'Northwest Territories', NU: 'Nunavut'};
 const f = {int: d3.format(',.0f'), sgn: d3.format('+,'), rate: d3.format('+.1f'), dec: d3.format('.1f'), pct: d3.format('.1%'), pct0: d3.format('.0%'), spct: d3.format('+.1%'), usd: (v) => '$' + d3.format(',')(v)};
@@ -91,7 +142,7 @@ const svgIn = (el, h) => {
 };
 
 /* tables */
-const sorts = {mtable: {k: 'arr_office', d: -1}, htable: {k: 'movers1', d: -1}, 'd-towns': {k: 'pop', d: -1}, htbl: {k: 'starts_12m', d: -1}, 'city-postal': {k: 'pop', d: -1}, ftbl: {k: 'moved_in', d: -1}};
+const sorts = {mtable: {k: 'arr_office', d: -1}, htable: {k: 'movers1', d: -1}, 'd-towns': {k: 'pop', d: -1}, htbl: {k: 'starts_12m', d: -1}, 'city-postal': {k: 'pop', d: -1}, 'area-places': {k: 'pop', d: -1}, ftbl: {k: 'moved_in', d: -1}};
 const sorted = (name, rows) => {
   const {k, d} = sorts[name];
   return rows.slice().sort((a, b) => {
@@ -134,7 +185,7 @@ document.querySelectorAll('.dm table').forEach((t) => {
 });
 document.querySelectorAll('tbody[data-draw=mtable]').forEach((tb) => tb.addEventListener('click', (ev) => {
   const tr = ev.target.closest('tr[data-key]');
-  if (tr) { dash.setParams({market: tr.dataset.key}); document.querySelectorAll('#selected').forEach((e) => e.scrollIntoView({block: 'nearest'})); }
+  if (tr) { dash.setParams({market: tr.dataset.key, area: '', zones: ''}); document.querySelectorAll('#selected').forEach((e) => e.scrollIntoView({block: 'nearest'})); }
 }));
 
 /* controls */
@@ -172,7 +223,7 @@ const cityOpen = (open) => {
   cityList.hidden = !open; cityIn.setAttribute('aria-expanded', String(open));
   if (!open) cityIn.removeAttribute('aria-activedescendant');
 };
-const cityChoose = (r) => { cityOpen(false); cityIn.value = r.name; dash.setParams({city: r.id, market: r.market_id}); };
+const cityChoose = (r) => { cityOpen(false); cityIn.value = r.name; dash.setParams({city: r.id, market: r.market_id, area: '', zones: ''}); };
 let cityHits = [], cityAt = -1;
 const cityMark = (i) => {
   cityAt = i;
@@ -212,6 +263,14 @@ cityIn.addEventListener('keydown', (ev) => {
   if (ev.key === 'ArrowUp') { ev.preventDefault(); cityMark((cityAt - 1 + cityHits.length) % cityHits.length); }
   if (ev.key === 'Enter') { ev.preventDefault(); cityChoose(cityHits[Math.max(cityAt, 0)]); }
 });
+document.querySelectorAll('.dm-area-go').forEach((b) => b.addEventListener('click', () => { cityIn.value = ''; dash.setParams({area: b.dataset.area, zones: '', city: '', market: AREAS[b.dataset.area].market}); }));
+document.querySelectorAll('.dm-area-reset').forEach((b) => b.addEventListener('click', () => dash.setParams({zones: ''})));
+document.querySelectorAll('.dm-area-clear').forEach((b) => b.addEventListener('click', () => dash.setParams({area: '', zones: ''})));
+document.querySelectorAll('.dm-area-copy').forEach((b) => b.addEventListener('click', () => {
+  const a = areaNow();
+  if (!a) return;
+  navigator.clipboard.writeText(areaFsas().join(', ')).then(() => document.querySelectorAll('.dm-area-copied').forEach((e) => { e.hidden = false; })).catch(() => {});
+}));
 document.querySelectorAll('.dm-city-clear').forEach((b) => b.addEventListener('click', () => { cityIn.value = ''; dash.setParams({city: ''}); }));
 document.querySelectorAll('.dm-city-copy').forEach((b) => b.addEventListener('click', () => {
   const r = cityNow();
@@ -228,6 +287,9 @@ dash.onData(() => {
   document.querySelectorAll('.dm-city-copied').forEach((e) => { e.hidden = true; });
   document.querySelectorAll('.dm-city-copy, [data-city-table]').forEach((e) => { e.hidden = !cn || !cn.fsas; });
   if (document.activeElement !== cityIn) cityIn.value = cn ? cn.name : '';
+  document.querySelectorAll('#area-card').forEach((e) => { e.hidden = !areaNow(); });
+  document.querySelectorAll('.dm-area-copied').forEach((e) => { e.hidden = true; });
+  document.querySelectorAll('.dm-area-go').forEach((b) => b.setAttribute('aria-pressed', String(P().area === b.dataset.area)));
   const m = D('markets'), s = m && pick(m);
   document.querySelectorAll('[data-action]').forEach((e) => { e.hidden = !s || e.dataset.action !== s.action; });
   document.querySelectorAll('[data-play]').forEach((e) => { e.hidden = !s || e.dataset.play !== s.segment; });
@@ -247,7 +309,6 @@ const best = (name, field, fn) => dash.draw(name, (el) => {
 best('t-market', 'market', (v) => v);
 best('t-rate', 'arr_office', f.int);
 withMarket('d-name', 'market', (v) => v);
-withMarket('h-title', 'market', (v) => v);
 withMarket('d-action', 'action', (v) => v);
 withMarket('d-seg', 'segment', (v) => v);
 withMarket('d-rate', 'net_rate', f.rate);
@@ -298,7 +359,7 @@ dash.draw('provs', (sel) => {
   const ps = [...new Set(m.map((r) => r.prov))].sort((a, b) => PROV[a].localeCompare(PROV[b]));
   sel.replaceChildren(new Option('All of Canada', ''), ...ps.map((p) => new Option(PROV[p], p)));
   sel.value = P().prov ?? '';
-  sel.onchange = () => dash.setParams({prov: sel.value, market: ''});
+  sel.onchange = () => dash.setParams({prov: sel.value, market: '', area: '', zones: ''});
 });
 dash.draw('mkts', (sel) => {
   const m = D('markets') || [], p = P();
@@ -306,7 +367,7 @@ dash.draw('mkts', (sel) => {
   sel.replaceChildren(...list.map((r) => new Option(`${r.market}, ${r.prov}`, r.id)));
   const s = m.length ? pick(m) : null;
   if (s) sel.value = s.id;
-  sel.onchange = () => dash.setParams({market: sel.value});
+  sel.onchange = () => dash.setParams({market: sel.value, area: '', zones: ''});
 });
 
 /* market map */
@@ -342,7 +403,7 @@ dash.draw('map', (el) => {
     .style('cursor', 'pointer')
     .on('mousemove', (ev, x) => { const r = by.get(x.properties.CDUID); if (r) tip.show(ev, [`${r.market}, ${r.prov}`, `Net per 1,000: ${f.rate(r.net_rate)}`, `New residents per office: ${dash_(r.arr_office, f.int)}`, r.segment]); })
     .on('mouseleave', () => tip.hide())
-    .on('click', (ev, x) => dash.setParams({market: x.properties.CDUID}));
+    .on('click', (ev, x) => dash.setParams({market: x.properties.CDUID, area: '', zones: ''}));
   svg.selectAll('path').filter((x) => s && x.properties.CDUID === s.id).raise();
   if (p.metric === 'seg') legendSwatches(el, SEG);
   else if (p.metric === 'office') legendRamp(el, (t) => seq(t * hi), '0', f.int(Math.round(hi)) + '+ per office');
@@ -437,6 +498,34 @@ dash.draw('city-postal-note', (el) => {
   const r = cityNow();
   el.textContent = !r ? '—' : r.fsas ? 'Whole postal areas from the 2021 Census, so a row can include people outside the city. Moving rates cover May 2020 to May 2021. Postal areas are matched to the city by boundary overlap.' : 'No postal area with full census figures is matched to this place. Use the postal areas for its market.';
 });
+const areaPlaces = () => { const u = D('municipalities'), ids = new Set(areaGroups().flatMap((g) => g.places)); return u ? u.filter((r) => ids.has(r.id)) : []; };
+const areaSum = (k) => areaPlaces().reduce((t, r) => t + (r[k] || 0), 0);
+const areaText = (name, fn) => dash.draw(name, (el) => { const a = areaNow(); el.textContent = a && D('municipalities') ? fn(a) : '—'; });
+areaText('area-name', (a) => a.name);
+areaText('area-sub', (a) => `Where patients of a clinic in ${a.town} can realistically come from. The suggestion covers about 15 minutes by car.`);
+areaText('area-note', (a) => a.note + ' Places under 5,000 people are inside the postal areas but not listed. Postal areas are whole areas from the 2021 Census, so they can include people outside the listed places.');
+dash.draw('area-zones', (el) => {
+  const a = areaNow();
+  if (!a) { el.replaceChildren(); delete el.dataset.area; return; }
+  if (el.dataset.area !== P().area) {
+    el.dataset.area = P().area;
+    el.replaceChildren(...a.groups.map((g) => {
+      const l = document.createElement('label'), c = document.createElement('input'), n = document.createElement('span');
+      c.type = 'checkbox'; c.dataset.fsas = g.fsas.join(',');
+      c.addEventListener('change', () => areaToggle(g, c.checked));
+      n.className = 'dm-note'; n.textContent = g.fsas.join(' ') + (g.on ? ' · suggested' : '');
+      l.append(c, g.label, n);
+      return l;
+    }));
+  }
+  const on = new Set(areaFsas());
+  el.querySelectorAll('input').forEach((c) => { c.checked = c.dataset.fsas.split(',').every((x) => on.has(x)); });
+});
+areaText('area-pop', () => f.int(areaSum('pop')));
+areaText('area-off', () => f.int(areaSum('offices')));
+areaText('area-ppo', () => (areaSum('offices') ? f.int(Math.round(areaSum('pop') / areaSum('offices'))) : '—'));
+areaText('area-mov', () => f.int((D('neighbourhoods') || []).filter((r) => areaFsas().includes(r.fsa)).reduce((t, r) => t + r.movers1, 0)));
+dash.draw('area-places', (tb) => { fill(tb, sorted('area-places', areaPlaces()), 'id', [[(r) => r.name], [(r) => f.int(r.pop), 'n'], [(r) => f.spct(r.growth), 'n'], [(r) => f.int(r.offices), 'n'], [(r) => dash_(r.people_office, f.int), 'n']]); });
 const metroOf = () => {
   const m = D('markets'), fl = D('metro_flows'), s = m && pick(m);
   return s && fl ? fl.find((r) => r.metro === s.metro) : null;
@@ -456,15 +545,28 @@ dash.draw('mtable', (tb) => {
 });
 
 /* postal areas */
-const hoodRows = () => {
-  const m = D('markets'), n = D('neighbourhoods'), s = m && pick(m), seg = P().seg;
-  return s && n ? n.filter((r) => r.market_id === s.id && (!seg || r.segment === seg)) : [];
+const hoodAll = () => {
+  const m = D('markets'), n = D('neighbourhoods'), s = m && pick(m), a = areaNow(), on = areaFsas();
+  return s && n ? n.filter((r) => (a ? on.includes(r.fsa) : r.market_id === s.id)) : [];
 };
+const hoodRows = () => { const seg = P().seg; return hoodAll().filter((r) => !seg || r.segment === seg); };
 const hoodKpi = (name, fld) => dash.draw(name, (el) => {
-  const m = D('markets'), t = D('hood_totals'), s = m && pick(m), r = t && s && t.find((x) => x.market_id === s.id);
+  const m = D('markets'), t = D('hood_totals'), s = m && pick(m);
+  let r = t && s && t.find((x) => x.market_id === s.id);
+  if (areaNow()) { const rows = hoodAll(); r = rows.length ? {areas: rows.length, pop: d3.sum(rows, (x) => x.pop), movers: d3.sum(rows, (x) => x.movers1), newcomers: d3.sum(rows, (x) => x.newcomer1)} : null; }
   if (!r) { el.textContent = '—'; return; }
   el.textContent = f.int(r[fld]);
 });
+dash.draw('h-title', (el) => { const m = D('markets'), s = m && pick(m), a = areaNow(); el.textContent = a ? a.name : s ? s.market : '—'; });
+/* dentist pins: the market's, or for an area the ones inside its postal areas */
+const pinRows = () => {
+  const m = D('markets'), d = D('dentists'), g = D('map_neighbourhoods'), s = m && pick(m), a = areaNow();
+  if (!s || !d) return [];
+  if (!a || !g) return d.filter((r) => r.market_id === s.id);
+  fixRings(g);
+  const rows = hoodAll(), mk = new Set(rows.map((r) => r.market_id)), on = areaFsas(), feats = g.features.filter((x) => on.includes(x.properties.CFSAUID));
+  return d.filter((r) => mk.has(r.market_id) && feats.some((x) => d3.geoContains(x, [r.lon, r.lat])));
+};
 hoodKpi('h-n', 'areas'); hoodKpi('h-pop', 'pop'); hoodKpi('h-mov', 'movers'); hoodKpi('h-new', 'newcomers');
 dash.draw('s-head', (el) => {
   const p = (D('provinces') || []).filter((r) => r.province !== 'Canada');
@@ -474,7 +576,8 @@ dash.draw('h-pins', (el) => {
   const m = D('markets'), d = D('dentists'), s = m && pick(m);
   if (P().pins === 'off') { el.textContent = 'Dentist pins are hidden.'; return; }
   if (!s || !d) { el.textContent = '—'; return; }
-  el.textContent = `Pins show ${f.int(d.filter((r) => r.market_id === s.id).length)} dentist listings from OpenStreetMap, against ${f.int(s.offices)} offices counted by Statistics Canada in this market. The map is incomplete and volunteer-made: an empty area does not mean there is no dentist, and a listing may be out of date. Map data © OpenStreetMap contributors.`;
+  const a = areaNow();
+  el.textContent = `Pins show ${f.int(pinRows().length)} dentist listings from OpenStreetMap, against ${f.int(a ? areaSum('offices') : s.offices)} offices counted by Statistics Canada in ${a ? 'the listed places' : 'this market'}. The map is incomplete and volunteer-made: an empty area does not mean there is no dentist, and a listing may be out of date. Map data © OpenStreetMap contributors.`;
 });
 dash.draw('htable', (tb) => {
   const rows = sorted('htable', hoodRows());
@@ -486,7 +589,8 @@ dash.draw('hmap', (el) => {
   el.replaceChildren();
   if (!g || !n || !s) { el.textContent = '—'; return; }
   fixRings(g);
-  const rows = n.filter((r) => r.market_id === s.id), by = new Map(rows.map((r) => [r.fsa, r]));
+  const a = areaNow(), cand = a ? new Set(a.groups.flatMap((x) => x.fsas)) : null;
+  const rows = a ? n.filter((r) => cand.has(r.fsa)) : hoodAll(), by = new Map(rows.map((r) => [r.fsa, r]));
   const shown = new Set(hoodRows().map((r) => r.fsa));
   const feats = g.features.filter((x) => by.has(x.properties.CFSAUID));
   if (!feats.length) { el.textContent = '—'; return; }
@@ -503,13 +607,14 @@ dash.draw('hmap', (el) => {
     .style('stroke', 'var(--color-panel)').style('stroke-width', 1)
     .on('mousemove', (ev, x) => { const r = by.get(x.properties.CFSAUID); tip.show(ev, [`${r.fsa}, ${r.place}`, r.segment, `Moved in past year: ${f.pct(r.mover_rate)}`, `Household income: ${f.usd(r.income)}`]); })
     .on('mouseleave', () => tip.hide());
+  if (a) svg.selectAll('path').style('cursor', 'pointer').on('click', (ev, x) => { const grp = a.groups.find((q) => q.fsas.includes(x.properties.CFSAUID)); areaToggle(grp, !areaGroups().includes(grp)); });
   const big = feats.filter((x) => { const b = path.bounds(x); return b[1][0] - b[0][0] > 34 && b[1][1] - b[0][1] > 18; });
   const used = [];
   svg.selectAll('text.l').data(big).join('text').attr('class', 'l')
     .attr('transform', (x) => `translate(${path.centroid(x)})`).attr('text-anchor', 'middle').attr('dy', '.35em')
     .text((x) => { const c = path.centroid(x); if (used.some((u) => Math.abs(u[0] - c[0]) < 34 && Math.abs(u[1] - c[1]) < 16)) return ''; used.push(c); return x.properties.CFSAUID; })
     .style('font-size', 'var(--cds-font-size-caption)').style('fill', 'var(--color-fg)').style('paint-order', 'stroke').style('stroke', 'var(--color-panel)').style('stroke-width', 3).style('pointer-events', 'none');
-  const pins = P().pins === 'off' ? [] : (D('dentists') || []).filter((r) => r.market_id === s.id).map((r) => ({r, c: proj([r.lon, r.lat])})).filter((x) => x.c && x.c[0] >= 0 && x.c[0] <= w && x.c[1] >= 0 && x.c[1] <= h);
+  const pins = P().pins === 'off' ? [] : pinRows().map((r) => ({r, c: proj([r.lon, r.lat])})).filter((x) => x.c && x.c[0] >= 0 && x.c[0] <= w && x.c[1] >= 0 && x.c[1] <= h);
   svg.selectAll('circle.pin').data(pins).join('circle').attr('class', 'pin').attr('cx', (x) => x.c[0]).attr('cy', (x) => x.c[1]).attr('r', 4)
     .style('fill', 'var(--color-fg)').style('stroke', 'var(--color-panel)').style('stroke-width', 2)
     .on('mousemove', (ev, x) => tip.show(ev, [x.r.name, ...(x.r.address ? [x.r.address] : []), 'OpenStreetMap listing'])).on('mouseleave', () => tip.hide());

@@ -1,7 +1,7 @@
 // Small runtime for the dashboard: loads data/*.json, holds the filters and redraws.
 window.dash = (() => {
   const DATASETS = ['markets', 'trend', 'neighbourhoods', 'metro_flows', 'housing', 'provinces', 'municipalities', 'dentists', 'map_markets', 'map_neighbourhoods', 'meta'];
-  const DEFAULTS = {prov: '', seg: '', minpop: '50000', metric: 'net', market: '', hmetric: 'movers', city: '', pins: 'on'};
+  const DEFAULTS = {prov: '', seg: '', minpop: '50000', metric: 'net', market: '', hmetric: 'movers', city: '', area: '', zones: '', pins: 'on'};
   const store = new Map(), calcs = new Map(), draws = new Map();
   const dataHooks = [];
   const query = new URLSearchParams(location.search);

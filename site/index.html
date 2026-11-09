@@ -26,6 +26,10 @@
       <input id="dm-city" type="text" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="dm-city-list" autocomplete="off" spellcheck="false" placeholder="For example, Châteauguay">
       <ul id="dm-city-list" role="listbox" aria-label="Matching cities" hidden></ul>
     </div>
+    <div class="dm-shortcuts" role="group" aria-label="Patient areas">
+      <button class="dm-btn dm-area-go" data-area="chateauguay" aria-pressed="false">Châteauguay area</button>
+      <button class="dm-btn dm-area-go" data-area="st-bruno" aria-pressed="false">St-Bruno area</button>
+    </div>
     <label for="dm-prov">Province
       <select id="dm-prov" class="dash-select" data-draw="provs"></select>
     </label>
@@ -75,6 +79,37 @@
       <button class="dm-btn dm-city-copy">Copy this city's postal codes</button>
       <button class="dm-btn dm-go" data-goto="neighbourhoods">See the market's postal areas</button>
       <span class="dm-note dm-city-copied" hidden>Copied. Paste them into your ad or mail campaign.</span>
+    </div>
+  </section>
+
+  <section id="area-card" class="dm-card" aria-label="Selected patient area" hidden>
+    <div class="dm-head">
+      <div><h2 data-draw="area-name" data-field="name">—</h2><p class="dm-note" data-draw="area-sub">—</p></div>
+      <button class="dm-btn dm-area-clear">Clear area</button>
+    </div>
+    <div class="dm-kpis">
+      <div><span class="dm-note">People in listed places, <span data-label="age_year">2025</span></span><br><span class="dm-num" data-draw="area-pop" data-field="pop">—</span></div>
+      <div><span class="dm-note">Dental offices in listed places, <span data-label="offices">June 2026</span></span><br><span class="dm-num" data-draw="area-off" data-field="offices">—</span></div>
+      <div><span class="dm-note">People per dental office</span><br><span class="dm-num" data-draw="area-ppo" data-field="people_office">—</span></div>
+      <div><span class="dm-note">Moved home in the past year, 2021</span><br><span class="dm-num" data-draw="area-mov" data-field="movers">—</span></div>
+    </div>
+    <fieldset class="dm-zones">
+      <legend>Postal areas included</legend>
+      <p class="dm-note">The suggested areas are ticked. Tick or untick a group to change the area, or click it on the map in Postal areas to target.</p>
+      <div data-draw="area-zones"></div>
+      <button class="dm-btn dm-area-reset">Back to the suggestion</button>
+    </fieldset>
+    <p class="dm-note" data-draw="area-note">—</p>
+    <div class="dm-scroll short">
+      <table data-row-key="id" aria-label="Places in the selected area">
+        <thead><tr><th data-field="name"><button>Place</button></th><th class="n" data-field="pop"><button>People</button></th><th class="n" data-field="growth"><button>Growth</button></th><th class="n" data-field="offices"><button>Offices</button></th><th class="n" data-field="people_office"><button>People per office</button></th></tr></thead>
+        <tbody data-draw="area-places"></tbody>
+      </table>
+    </div>
+    <div class="dm-actions">
+      <button class="dm-btn dm-area-copy">Copy this area's postal codes</button>
+      <button class="dm-btn dm-go" data-goto="neighbourhoods">See the area's postal areas</button>
+      <span class="dm-note dm-area-copied" hidden>Copied. Paste them into your ad or mail campaign.</span>
     </div>
   </section>
 
