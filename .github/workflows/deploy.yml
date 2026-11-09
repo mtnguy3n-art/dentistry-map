@@ -27,8 +27,12 @@ jobs:
       - name: Stamp the version
         run: |
           n="${{ github.run_number }}"; t="$(date -u +%Y-%m-%dT%H:%M:%SZ)"; c="${GITHUB_SHA::7}"
-          sed -i "s|data-version=\"\" data-deployed=\"\" data-commit=\"\"|data-version=\"$n\" data-deployed=\"$t\" data-commit=\"$c\"|" site/index.html
+          label="Version $n · deployed $(date -u '+%b %-d, %Y, %H:%M') UTC · $c"
+          sed -i "s|data-version=\"\" data-deployed=\"\" data-commit=\"\">Local preview, not a deployed version<|data-version=\"$n\" data-deployed=\"$t\" data-commit=\"$c\">$label<|" site/index.html
           grep -q "data-version=\"$n\"" site/index.html
+          # new asset URLs each deploy, so browsers don't keep running an older script
+          sed -i -E "s#(assets/[A-Za-z0-9.]+\.(js|css))\"#\1?v=$n\"#g" site/index.html
+          grep -q "assets/app.js?v=$n" site/index.html
           printf '{"version":"%s","deployed":"%s","commit":"%s"}\n' "$n" "$t" "$c" > site/version.json
       - uses: actions/upload-pages-artifact@v3
         with:
