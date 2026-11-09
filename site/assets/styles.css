@@ -64,7 +64,9 @@ body{margin:0;padding:1.5rem 1rem 3rem;background:var(--color-bg);color:var(--co
 .dm table{border-collapse:collapse;width:100%;font-size:var(--cds-font-size-caption);font-variant-numeric:tabular-nums}
 .dm th{position:sticky;top:0;background:var(--color-panel);text-align:left;font-weight:var(--cds-font-weight-medium);border-bottom:1px solid var(--color-border-line);padding:0;vertical-align:bottom;z-index:1}
 .dm th button{all:unset;display:block;padding:var(--cds-pad-xs) var(--cds-pad-sm);cursor:pointer;white-space:nowrap}
+.dm th:not(:has(> button)){padding:var(--cds-pad-xs) var(--cds-pad-sm)}
 .dm th.n,.dm td.n{text-align:right}
+.dm-bench{display:flex;flex-direction:column;gap:var(--cds-gap-xs);margin:var(--cds-gap-md) 0}
 .dm td{padding:var(--cds-pad-xs) var(--cds-pad-sm);border-bottom:1px solid var(--color-border-line);white-space:nowrap}
 .dm td.wrap{white-space:normal;min-width:11rem}
 .dm tbody[data-draw=mtable] tr{cursor:pointer}

@@ -909,6 +909,93 @@ dash.draw('rival-summary', (el) => {
   const top = rows.slice(0, 3).map((r) => `${r.name} (${f.pct0(r.share)})`).join(', ');
   el.textContent = (!rows.length ? `No ${what} overlap a ${rad} km radius around ${h.name}.` : `${rows.length} ${what} overlap the ${rad} km radius around ${h.name}, and ${strong.length} of them cover at least half of it. The biggest overlaps: ${top}.`) + (shut ? ` ${shut} closed or merged ${shut === 1 ? 'listing is' : 'listings are'} left out.` : '');
 });
+/* benchmarks: every open listing's nearest neighbour and nearby counts, to place one clinic among its province and Canada */
+const flatKm = (a, b) => Math.hypot((a.lon - b.lon) * 111.32 * Math.cos((a.lat + b.lat) / 2 * Math.PI / 180), (a.lat - b.lat) * 110.57);
+const CELL = .12;
+let benchMemo = {};
+const benchSpots = () => {
+  const d = D('dentists'), m = D('markets');
+  if (!d || !m) return null;
+  const key = `${Object.entries(rivalFix).join()}|${localNotes.closed.length}`;
+  if (benchMemo.key !== key) {
+    const prov = new Map(m.map((x) => [x.id, x.prov])), pts = d.filter((r) => rivalService(r) !== CLOSED).map((r) => ({...r, prov: prov.get(r.market_id)}));
+    const grid = new Map();
+    for (const r of pts) { const k = `${Math.floor(r.lat / CELL)},${Math.floor(r.lon / CELL)}`; if (!grid.has(k)) grid.set(k, []); grid.get(k).push(r); }
+    benchMemo = {key, val: {pts, grid}, stats: {}};
+  }
+  return benchMemo.val;
+};
+/* listings within 30 m are treated as the same clinic */
+const crowd = (spot, rad, b) => {
+  const cy = Math.floor(spot.lat / CELL), cx = Math.floor(spot.lon / CELL);
+  let nn = Infinity, in1 = 0, inR = 0;
+  for (let ring = 0; ring <= 25; ring++) {
+    for (let y = cy - ring; y <= cy + ring; y++) {
+      for (let x = cx - ring; x <= cx + ring; x++) {
+        if (Math.max(Math.abs(y - cy), Math.abs(x - cx)) !== ring) continue;
+        for (const r of b.grid.get(`${y},${x}`) || []) {
+          const k = flatKm(spot, r);
+          if (k <= .03) continue;
+          if (k < nn) nn = k;
+          if (k <= 1) in1++;
+          if (k <= rad) inR++;
+        }
+      }
+    }
+    /* each ring adds at least 6 km in every direction south of 60°N, so stop once the radius and the nearest are covered */
+    if (ring >= 1 && ring * 6 >= Math.max(nn, rad)) break;
+  }
+  return {nn: Number.isFinite(nn) ? nn : null, in1, inR};
+};
+const benchStats = (rad) => {
+  const b = benchSpots();
+  if (!b) return null;
+  if (!benchMemo.stats[rad]) benchMemo.stats[rad] = b.pts.map((r) => ({prov: r.prov, ...crowd(r, rad, b)}));
+  return benchMemo.stats[rad];
+};
+/* share of clinics facing less competition than this one: higher means more crowded than usual */
+const busier = (rows, v, lessIsBusier) => {
+  const vals = rows.filter((x) => x != null);
+  if (!vals.length || v == null) return null;
+  const below = vals.filter((x) => (lessIsBusier ? x > v : x < v)).length, same = vals.filter((x) => x === v).length;
+  return (below + same / 2) / vals.length;
+};
+const verdict = (p) => (p == null ? '—' : p >= .9 ? 'Far more crowded than usual' : p >= .75 ? 'More crowded than usual' : p > .25 ? 'Within the norm' : p > .1 ? 'Less crowded than usual' : 'Far less crowded than usual');
+const hubProvAndMarket = () => {
+  const h = hubNow(), d = D('dentists'), m = D('markets');
+  if (!h || !d || !m) return null;
+  const near = h.market_id ? h : d3.least(d, (x) => flatKm(h, x));
+  const mk = m.find((x) => x.id === near.market_id);
+  return mk ? {prov: mk.prov, market: mk} : null;
+};
+dash.draw('rival-bench-wrap', (el) => { el.hidden = !hubNow(); });
+dash.draw('rival-bench-prov', (el) => { const p = hubProvAndMarket(); el.textContent = p ? `${PROV[p.prov]} median` : 'Province median'; });
+dash.draw('rival-bench-note', (el) => {
+  const p = hubProvAndMarket(), all = benchStats(radiusKm());
+  el.textContent = !p || !all ? '—' : `Compared with all ${f.int(all.length)} open dental listings in Canada and ${f.int(all.filter((x) => x.prov === p.prov).length)} in ${PROV[p.prov]}, counting every type of dental office, not just the same services. Clinics in big cities sit closer together than rural ones, so the province is the fairer comparison. OpenStreetMap is more complete in some cities than others, so treat the first three rows as a rough guide. The last row uses Statistics Canada's full office count.`;
+});
+dash.draw('rival-bench', (tb) => {
+  const h = hubNow(), p = hubProvAndMarket(), rad = radiusKm(), all = benchStats(rad), b = benchSpots(), m = D('markets');
+  if (!h || !p || !all || !m) { tb.replaceChildren(); return; }
+  const me = crowd(h, rad, b), mine = all.filter((x) => x.prov === p.prov);
+  const pick = (rows, k) => rows.map((x) => x[k]);
+  const stand = (pp, pc) => (pp == null ? '—' : `${verdict(pp)}: busier than ${f.pct0(pp)} of clinics in ${PROV[p.prov]} and ${f.pct0(pc)} in Canada`);
+  const row = (label, v, fmt, k, lessIsBusier) => {
+    const pv = pick(mine, k), cv = pick(all, k), pp = busier(pv, v, lessIsBusier), pc = busier(cv, v, lessIsBusier);
+    return {id: label, label, v: fmt(v), pm: fmt(d3.median(pv.filter((x) => x != null))), cm: fmt(d3.median(cv.filter((x) => x != null))), stand: stand(pp, pc)};
+  };
+  const ppo = (r) => (r.offices ? r.pop / r.offices : null);
+  const mp = m.filter((x) => x.prov === p.prov).map(ppo), mc = m.map(ppo), mv = p.market.people_office;
+  const pp = busier(mp, mv, true), pc = busier(mc, mv, true);
+  const rows = [
+    row('Distance to the nearest other dental listing', me.nn, (v) => (v == null ? '—' : toKm(v)), 'nn', true),
+    row('Dental listings within 1 km', me.in1, (v) => (v == null ? '—' : f.dec(v).replace(/\.0$/, '')), 'in1', false),
+    ...(rad === 1 ? [] : [row(`Dental listings within ${rad} km`, me.inR, (v) => (v == null ? '—' : f.dec(v).replace(/\.0$/, '')), 'inR', false)]),
+    {id: 'ppo', label: `People per dental office in the ${p.market.market} market`, v: dash_(mv, f.int), pm: f.int(d3.median(mp.filter((x) => x != null))), cm: f.int(d3.median(mc.filter((x) => x != null))),
+      stand: pp == null ? '—' : `${verdict(pp)}: fewer people per office than ${f.pct0(pp)} of markets in ${PROV[p.prov]} and ${f.pct0(pc)} in Canada`},
+  ];
+  fill(tb, rows, 'id', [[(r) => r.label], [(r) => r.v, 'n'], [(r) => r.pm, 'n'], [(r) => r.cm, 'n'], [(r) => r.stand]]);
+});
 dash.draw('rival-map', (el) => {
   const g = D('map_neighbourhoods'), h = hubNow();
   el.replaceChildren();
