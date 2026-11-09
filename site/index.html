@@ -18,6 +18,7 @@
     <button class="dm-tab" role="tab" data-tab="markets" aria-selected="true">Where to advertise</button>
     <button class="dm-tab" role="tab" data-tab="neighbourhoods" aria-selected="false">Postal areas to target</button>
     <button class="dm-tab" role="tab" data-tab="signals" aria-selected="false">Latest signals</button>
+    <button class="dm-tab" role="tab" data-tab="competition" aria-selected="false">Competition</button>
     <button class="dm-tab" role="tab" data-tab="news" aria-selected="false">News and trends</button>
   </div>
 
@@ -61,6 +62,7 @@
       <div><h2 data-draw="clinic-name">Your clinic</h2><p class="dm-note" data-draw="clinic-sub">—</p></div>
       <div class="dm-actions" data-clinic-on hidden>
         <button class="dm-btn dm-clinic-area">Show the clinic's patient area</button>
+        <button class="dm-btn dm-hub-mine">See its competition</button>
         <button class="dm-btn dm-clinic-edit">Change</button>
         <button class="dm-btn dm-clinic-remove">Remove</button>
       </div>
@@ -95,37 +97,6 @@
       </div>
       <p class="dm-note">Generated from the figures on this page. These are marketing starting points, not clinical guidance.</p>
     </div>
-  </section>
-
-  <section id="rivals-card" class="dm-card" aria-label="Competition map" data-clinic-on hidden>
-    <h2>Competition map</h2>
-    <p class="dm-note">Each circle is the area a clinic draws most of its patients from. Where another clinic's circle overlaps your clinic's, you compete for the same patients. Overlap is the share of your clinic's circle that the other circle covers.</p>
-    <div class="dm-filters">
-      <label for="dm-radius">Patient radius
-        <select id="dm-radius" class="dash-select">
-          <option value="1">1 km</option><option value="2">2 km</option><option value="3">3 km</option><option value="5">5 km</option><option value="8">8 km</option>
-        </select>
-      </label>
-      <label for="dm-rshow">Show
-        <select id="dm-rshow" class="dash-select">
-          <option value="same">Clinics offering the same services</option>
-          <option value="all">All dental listings</option>
-        </select>
-      </label>
-    </div>
-    <fieldset class="dm-zones">
-      <legend>Services your clinic offers</legend>
-      <div data-draw="rival-services"></div>
-    </fieldset>
-    <p data-draw="rival-summary">—</p>
-    <div class="dm-chart dm-map" data-draw="rival-map">—</div>
-    <div class="dm-scroll">
-      <table aria-label="Competing clinics">
-        <thead><tr><th>Clinic</th><th>Main service (guessed from the name)</th><th class="n">Distance</th><th class="n">Overlap</th></tr></thead>
-        <tbody data-draw="rival-table"></tbody>
-      </table>
-    </div>
-    <p class="dm-note">Services are guessed from each listing's name, so a general clinic that also does implants shows as general dentistry. Correct a guess in the table and it is saved in this browser. Listings come from OpenStreetMap and are about a third complete. Circles are straight-line distance, not driving time, and the same size for every clinic. Map data © OpenStreetMap contributors.</p>
   </section>
 
   <section id="city-card" class="dm-card" aria-label="Selected city" hidden>
@@ -345,6 +316,45 @@
           </table>
         </div>
       </div>
+    </div>
+  </section>
+
+  <section id="competition" class="dm-page" hidden>
+    <div class="dm-card">
+      <h2 data-draw="hub-name">Competition map</h2>
+      <p class="dm-note">Pick any dental clinic to see which nearby clinics compete with it for patients. Each circle is the area a clinic draws most of its patients from. Overlap is the share of the chosen clinic's circle that another clinic's circle covers.</p>
+      <div class="dm-filters">
+        <div class="dm-city">
+          <label for="dm-hub">Clinic at the centre</label>
+          <input id="dm-hub" type="text" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="dm-hub-list" autocomplete="off" spellcheck="false" placeholder="Search by clinic name, street or town">
+          <ul id="dm-hub-list" role="listbox" aria-label="Matching clinics" hidden></ul>
+        </div>
+        <button class="dm-btn dm-hub-mine" hidden>Use your clinic</button>
+        <label for="dm-radius">Patient radius
+          <select id="dm-radius" class="dash-select dm-ctl" data-param="rad">
+            <option value="1">1 km</option><option value="2">2 km</option><option value="3">3 km</option><option value="5">5 km</option><option value="8">8 km</option>
+          </select>
+        </label>
+        <label for="dm-rshow">Show
+          <select id="dm-rshow" class="dash-select dm-ctl" data-param="rshow">
+            <option value="same">Clinics offering the same services</option>
+            <option value="all">All dental listings</option>
+          </select>
+        </label>
+      </div>
+      <fieldset class="dm-zones">
+        <legend>Services the clinic at the centre offers</legend>
+        <div data-draw="rival-services"></div>
+      </fieldset>
+      <p data-draw="rival-summary">—</p>
+      <div class="dm-chart dm-map" data-draw="rival-map">—</div>
+      <div class="dm-scroll">
+        <table aria-label="Competing clinics">
+          <thead><tr><th>Clinic</th><th>Main service (guessed from the name)</th><th class="n">Distance</th><th class="n">Overlap</th></tr></thead>
+          <tbody data-draw="rival-table"></tbody>
+        </table>
+      </div>
+      <p class="dm-note">Services are guessed from each listing's name, so a general clinic that also does implants shows as general dentistry. Correct a guess in the table and it is saved in this browser only. Listings come from OpenStreetMap and are about a third complete, so some competitors are missing. Circles are straight-line distance, not driving time, and the same size for every clinic. Map data © OpenStreetMap contributors.</p>
     </div>
   </section>
 

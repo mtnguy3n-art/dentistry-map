@@ -760,7 +760,7 @@ dash.draw('clinic-rivals', (tb) => {
   fill(tb, clinicRivals().slice(0, 12), 'name', [[(r) => r.name], [(r) => (r.km < 1 ? Math.round(r.km * 1000) + ' m' : f.dec(r.km) + ' km'), 'n']]);
 });
 
-/* competition map: equal patient radii around the clinic and each nearby listing */
+/* competition map: equal patient radii around any listing, or your clinic, and the listings near it */
 const SERVICES = ['General dentistry', 'Implants', 'Dentures', 'Orthodontics', 'Children', 'Gum care', 'Oral surgery'];
 const guessService = (name) => {
   const s = name.toLowerCase();
@@ -777,67 +777,130 @@ let rivalFix = {};
 try { rivalFix = JSON.parse(localStorage.getItem(RIVAL_KEY)) || {}; } catch (e) { rivalFix = {}; }
 const rivalId = (r) => `${r.name}@${r.lat.toFixed(5)},${r.lon.toFixed(5)}`;
 const rivalService = (r) => rivalFix[rivalId(r)] || (closedNote(r) ? CLOSED : guessService(r.name));
-const clinicServices = () => (clinic && clinic.services) || ['General dentistry'];
-const radiusKm = () => Number((clinic && clinic.radius) || 3);
 /* share of one circle covered by another of the same radius, centres d apart */
 const overlap = (d, r) => (d >= 2 * r ? 0 : (2 * r * r * Math.acos(d / (2 * r)) - (d / 2) * Math.sqrt(4 * r * r - d * d)) / (Math.PI * r * r));
-const rivalRows = () => {
-  const rad = radiusKm(), mine = clinicServices(), all = document.getElementById('dm-rshow').value === 'all';
-  return clinicRivals().filter((r) => r.km < 2 * rad).map((r) => ({...r, service: rivalService(r), share: overlap(r.km, rad)}))
-    .filter((r) => all || mine.includes(r.service)).sort((x, y) => y.share - x.share);
+const toKm = (k) => (k < 1 ? Math.round(k * 1000) + ' m' : f.dec(k) + ' km');
+const radiusKm = () => Number(P().rad) || 3;
+let hubMemo = {};
+const hubNow = () => {
+  const h = P().hub, d = D('dentists');
+  if (!h || !d) return null;
+  const key = h + '|' + (clinic ? clinic.lat + ',' + clinic.lon : '');
+  if (hubMemo.key !== key) {
+    const [lat, lon] = h.split(',').map(Number), pt = [lon, lat];
+    let val = null;
+    if (clinic && km(pt, [clinic.lon, clinic.lat]) < .03) val = {name: clinic.name, lat: clinic.lat, lon: clinic.lon, mine: true};
+    else { const r = d3.least(d, (x) => km(pt, [x.lon, x.lat])); if (r && km(pt, [r.lon, r.lat]) < .03) val = r; }
+    hubMemo = {key, val};
+  }
+  return hubMemo.val;
 };
-const rivalClosed = () => clinicRivalsAll().filter((r) => r.km < 2 * radiusKm() && rivalService(r) === CLOSED).map((r) => ({...r, service: CLOSED, share: null}));
-const rivalStore = (patch) => { clinicSave({...clinic, ...patch}); };
-document.getElementById('dm-radius').addEventListener('change', (ev) => rivalStore({radius: ev.target.value}));
-document.getElementById('dm-rshow').addEventListener('change', () => dash.setParams({}));
-dash.onData(() => { if (clinic) document.getElementById('dm-radius').value = String(radiusKm()); });
+const hubSet = (r) => dash.setParams({hub: `${r.lat.toFixed(5)},${r.lon.toFixed(5)}`, svc: ''});
+const hubServices = () => {
+  const h = hubNow(), s = P().svc, g = h && !h.mine ? rivalService(h) : 'General dentistry';
+  return s ? s.split('|') : [g === CLOSED ? 'General dentistry' : g];
+};
+/* listings within 30 m of the centre are taken to be the clinic itself */
+const hubAll = () => {
+  const h = hubNow(), d = D('dentists');
+  if (!h || !d) return [];
+  const pt = [h.lon, h.lat], lim = 2 * radiusKm();
+  return d.map((r) => ({...r, km: km(pt, [r.lon, r.lat])})).filter((r) => r.km > .03 && r.km < lim).map((r) => ({...r, service: rivalService(r)}));
+};
+const rivalRows = () => {
+  const rad = radiusKm(), mine = hubServices(), all = P().rshow === 'all';
+  return hubAll().filter((r) => r.service !== CLOSED && (all || mine.includes(r.service))).map((r) => ({...r, share: overlap(r.km, rad)})).sort((x, y) => y.share - x.share);
+};
+const rivalClosed = () => hubAll().filter((r) => r.service === CLOSED).map((r) => ({...r, share: null}));
+const openCompetition = () => { openTab('competition'); document.querySelectorAll('.dm-tabs').forEach((e) => e.scrollIntoView({block: 'start'})); };
+document.querySelectorAll('.dm-hub-mine').forEach((b) => b.addEventListener('click', () => { if (clinic) { hubSet(clinic); if (b.closest('#clinic-card')) openCompetition(); } }));
+dash.onData(() => { document.querySelectorAll('.dm-hub-mine').forEach((b) => { b.hidden = !clinic; }); });
+if (location.hash.slice(1) === 'competition') openTab('competition');
+
+/* clinic search for the centre of the competition map */
+const hubIn = document.getElementById('dm-hub'), hubList = document.getElementById('dm-hub-list');
+let hubHits = [], placeIdx = null;
+const placeOf = (r) => {
+  if (!placeIdx) {
+    placeIdx = new Map();
+    (D('markets') || []).forEach((m) => placeIdx.set('m' + m.id, m.market));
+    (D('municipalities') || []).forEach((u) => placeIdx.set('c' + u.id, u.name));
+  }
+  return placeIdx.get('c' + r.city_id) || placeIdx.get('m' + r.market_id) || '';
+};
+const hubOpen = (open) => { hubList.hidden = !open; hubIn.setAttribute('aria-expanded', String(open)); };
+const hubPick = (r) => { hubOpen(false); hubIn.value = ''; hubSet(r); };
+hubIn.addEventListener('input', () => {
+  const q = fold(hubIn.value), d = D('dentists') || [], sel = P().market;
+  if (q.length < 2) { hubOpen(false); return; }
+  hubHits = d.filter((r) => fold(`${r.name} ${r.address || ''} ${placeOf(r)}`).includes(q))
+    .sort((a, b) => (b.market_id === sel) - (a.market_id === sel) || a.name.localeCompare(b.name)).slice(0, 10);
+  hubList.replaceChildren(...(hubHits.length ? hubHits.map((r, i) => {
+    const li = document.createElement('li'), sp = document.createElement('span');
+    li.id = 'dm-hub-' + i; li.setAttribute('role', 'option'); li.setAttribute('aria-selected', 'false');
+    sp.textContent = [r.address, placeOf(r)].filter(Boolean).join(', ');
+    li.append(r.name, sp);
+    li.addEventListener('mousedown', (ev) => { ev.preventDefault(); hubPick(r); });
+    return li;
+  }) : [Object.assign(document.createElement('li'), {textContent: 'No dental listing matches. OpenStreetMap is missing many clinics.'})]));
+  if (!hubHits.length) hubList.firstChild.setAttribute('aria-disabled', 'true');
+  hubOpen(true);
+});
+hubIn.addEventListener('blur', () => hubOpen(false));
+hubIn.addEventListener('keydown', (ev) => {
+  if (ev.key === 'Escape') hubOpen(false);
+  if (ev.key === 'Enter' && hubHits.length && !hubList.hidden) { ev.preventDefault(); hubPick(hubHits[0]); }
+});
+
+dash.draw('hub-name', (el) => { const h = hubNow(); el.textContent = h ? `Competition around ${h.name}` : 'Competition map'; });
 dash.draw('rival-services', (el) => {
   if (!el.children.length) {
     el.replaceChildren(...SERVICES.map((s) => {
       const l = document.createElement('label'), c = document.createElement('input');
       c.type = 'checkbox'; c.value = s;
-      c.addEventListener('change', () => rivalStore({services: [...el.querySelectorAll('input:checked')].map((x) => x.value)}));
+      c.addEventListener('change', () => dash.setParams({svc: [...el.querySelectorAll('input:checked')].map((x) => x.value).join('|') || 'none'}));
       l.append(c, s);
       return l;
     }));
   }
-  const mine = clinicServices();
+  const mine = hubServices();
   el.querySelectorAll('input').forEach((c) => { c.checked = mine.includes(c.value); });
 });
 dash.draw('rival-summary', (el) => {
-  if (!clinic) { el.textContent = '—'; return; }
-  const rows = rivalRows(), strong = rows.filter((r) => r.share >= .5), same = document.getElementById('dm-rshow').value !== 'all';
+  const h = hubNow();
+  if (!h) { el.textContent = P().hub ? 'That clinic is no longer in the listings. Search for another one.' : 'Search for a clinic above, or click any clinic on the map once one is chosen.'; return; }
+  const rows = rivalRows(), strong = rows.filter((r) => r.share >= .5), same = P().rshow !== 'all', rad = radiusKm(), shut = rivalClosed().length;
+  const what = same ? 'clinics offering the same services' : 'dental listings';
   const top = rows.slice(0, 3).map((r) => `${r.name} (${f.pct0(r.share)})`).join(', ');
-  const shut = rivalClosed().length;
-  el.textContent = (!rows.length ? `No ${same ? 'clinic offering the same services' : 'dental listing'} overlaps a ${radiusKm()} km radius around your clinic.` : `${rows.length} ${same ? 'clinics offering the same services' : 'dental listings'} overlap your ${radiusKm()} km radius, and ${strong.length} of them cover at least half of it. The biggest overlaps: ${top}.`) + (shut ? ` ${shut} closed or merged ${shut === 1 ? 'listing is' : 'listings are'} left out.` : '');
+  el.textContent = (!rows.length ? `No ${what} overlap a ${rad} km radius around ${h.name}.` : `${rows.length} ${what} overlap the ${rad} km radius around ${h.name}, and ${strong.length} of them cover at least half of it. The biggest overlaps: ${top}.`) + (shut ? ` ${shut} closed or merged ${shut === 1 ? 'listing is' : 'listings are'} left out.` : '');
 });
 dash.draw('rival-map', (el) => {
-  const g = D('map_neighbourhoods');
+  const g = D('map_neighbourhoods'), h = hubNow();
   el.replaceChildren();
-  if (!clinic || !g) { el.textContent = '—'; return; }
+  if (!h || !g) { el.textContent = '—'; return; }
   fixRings(g);
-  const rad = radiusKm(), ctr = [clinic.lon, clinic.lat], deg = (k) => k / 6371 * 180 / Math.PI;
+  const rad = radiusKm(), ctr = [h.lon, h.lat], deg = (k) => k / 6371 * 180 / Math.PI;
   const frame = d3.geoCircle().center(ctr).radius(deg(rad * 2.2))();
-  const {w, svg} = svgIn(el, 0), h = Math.max(320, Math.min(560, w * .7));
-  svg.attr('viewBox', `0 0 ${w} ${h}`).style('overflow', 'hidden');
-  const proj = d3.geoMercator().fitExtent([[6, 6], [w - 6, h - 6]], frame), path = d3.geoPath(proj), tip = makeTip(el);
+  const {w, svg} = svgIn(el, 0), ht = Math.max(320, Math.min(560, w * .7));
+  svg.attr('viewBox', `0 0 ${w} ${ht}`).style('overflow', 'hidden');
+  const proj = d3.geoMercator().fitExtent([[6, 6], [w - 6, ht - 6]], frame), path = d3.geoPath(proj), tip = makeTip(el);
   const near = g.features.filter((x) => km(ctr, d3.geoCentroid(x)) < rad * 5);
   svg.append('g').selectAll('path').data(near).join('path').attr('d', path).style('fill', 'none').style('stroke', 'var(--cds-chart-grid)').style('stroke-width', 1);
   svg.append('g').selectAll('text').data(near).join('text').attr('transform', (x) => `translate(${path.centroid(x)})`).attr('text-anchor', 'middle').text((x) => x.properties.CFSAUID)
     .style('font-size', 'var(--cds-font-size-caption)').style('fill', 'var(--color-fg-muted)').style('pointer-events', 'none');
   const rows = rivalRows(), circle = (c) => path(d3.geoCircle().center(c).radius(deg(rad))());
   svg.append('path').attr('d', circle(ctr)).style('fill', 'var(--c1)').style('fill-opacity', .14).style('stroke', 'var(--c1)').style('stroke-width', 2);
-  const tipLines = (r) => [r.name, r.service, `${r.km < 1 ? Math.round(r.km * 1000) + ' m' : f.dec(r.km) + ' km'} away`, `Covers ${f.pct0(r.share)} of your clinic's circle`];
   svg.append('g').selectAll('path').data(rows).join('path').attr('d', (r) => circle([r.lon, r.lat]))
     .style('fill', 'var(--c2)').style('fill-opacity', (r) => .03 + .1 * r.share).style('stroke', 'var(--c2)').style('stroke-opacity', .55).style('stroke-width', 1).style('pointer-events', 'none');
   svg.append('g').selectAll('circle').data(rows).join('circle').attr('cx', (r) => proj([r.lon, r.lat])[0]).attr('cy', (r) => proj([r.lon, r.lat])[1]).attr('r', 5)
-    .style('fill', 'var(--c2)').style('stroke', 'var(--color-panel)').style('stroke-width', 2)
-    .on('mousemove', (ev, r) => tip.show(ev, tipLines(r))).on('mouseleave', () => tip.hide());
+    .style('fill', 'var(--c2)').style('stroke', 'var(--color-panel)').style('stroke-width', 2).style('cursor', 'pointer')
+    .on('mousemove', (ev, r) => tip.show(ev, [r.name, r.service, `${toKm(r.km)} away`, `Covers ${f.pct0(r.share)} of the chosen clinic's circle`, 'Click to put it at the centre']))
+    .on('mouseleave', () => tip.hide()).on('click', (ev, r) => { tip.hide(); hubSet(r); });
   const c = proj(ctr);
   svg.append('circle').attr('cx', c[0]).attr('cy', c[1]).attr('r', 8).style('fill', 'var(--c1)').style('stroke', 'var(--color-panel)').style('stroke-width', 3)
-    .on('mousemove', (ev) => tip.show(ev, [clinic.name, 'Your clinic'])).on('mouseleave', () => tip.hide());
+    .on('mousemove', (ev) => tip.show(ev, [h.name, h.mine ? 'Your clinic' : 'Clinic at the centre'])).on('mouseleave', () => tip.hide());
   const l = document.createElement('div'); l.className = 'dm-legend';
-  [['Your clinic and its patient radius', 'var(--c1)'], ['Competing clinics and their radius', 'var(--c2)']].forEach(([n, col]) => { const sp = document.createElement('span'), i = document.createElement('i'); i.style.background = col; sp.append(i, n); l.appendChild(sp); });
+  [['Clinic at the centre and its patient radius', 'var(--c1)'], ['Competing clinics and their radius', 'var(--c2)']].forEach(([n, col]) => { const sp = document.createElement('span'), i = document.createElement('i'); i.style.background = col; sp.append(i, n); l.appendChild(sp); });
   el.appendChild(l);
 });
 dash.draw('rival-table', (tb) => {
@@ -853,7 +916,7 @@ dash.draw('rival-table', (tb) => {
       dash.setParams({});
     });
     return s;
-  }], [(r) => (r.km < 1 ? Math.round(r.km * 1000) + ' m' : f.dec(r.km) + ' km'), 'n'], [(r) => (r.service === CLOSED ? '—' : f.pct0(r.share)), 'n']]);
+  }], [(r) => toKm(r.km), 'n'], [(r) => (r.share == null ? '—' : f.pct0(r.share)), 'n']]);
 });
 
 /* latest signals */
