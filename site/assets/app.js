@@ -677,12 +677,18 @@ const clinicPlace = () => {
   }
   return clinicMemo.val;
 };
-/* listings within 30 m are taken to be the clinic itself */
-const clinicRivals = () => {
+/* private notes in content/local.json (ignored by Git), such as practices that closed or were bought */
+let localNotes = {closed: []};
+fetch('content/local.json').then((r) => (r.ok ? r.json() : null)).then((j) => { if (j) { localNotes = {closed: [], ...j}; dash.setParams({}); } }).catch(() => {});
+const CLOSED = 'Closed or merged';
+const closedNote = (r) => localNotes.closed.find((x) => x.name === r.name);
+/* listings within 30 m are taken to be the clinic itself; closed ones are kept only so they can be reopened */
+const clinicRivalsAll = () => {
   const d = D('dentists');
   if (!clinic || !d) return [];
   return d.map((r) => ({...r, km: km([clinic.lon, clinic.lat], [r.lon, r.lat])})).filter((r) => r.km > .03 && r.km <= 5).sort((x, y) => x.km - y.km);
 };
+const clinicRivals = () => clinicRivalsAll().filter((r) => rivalService(r) !== CLOSED);
 const clinicTowns = () => {
   const p = clinicPlace(), a = p && AREAS[p.area], n = D('neighbourhoods'), u = D('municipalities'), g = D('map_neighbourhoods');
   if (!a || !n || !u || !g) return [];
@@ -770,7 +776,7 @@ const RIVAL_KEY = 'dm-rival-services';
 let rivalFix = {};
 try { rivalFix = JSON.parse(localStorage.getItem(RIVAL_KEY)) || {}; } catch (e) { rivalFix = {}; }
 const rivalId = (r) => `${r.name}@${r.lat.toFixed(5)},${r.lon.toFixed(5)}`;
-const rivalService = (r) => rivalFix[rivalId(r)] || guessService(r.name);
+const rivalService = (r) => rivalFix[rivalId(r)] || (closedNote(r) ? CLOSED : guessService(r.name));
 const clinicServices = () => (clinic && clinic.services) || ['General dentistry'];
 const radiusKm = () => Number((clinic && clinic.radius) || 3);
 /* share of one circle covered by another of the same radius, centres d apart */
@@ -780,6 +786,7 @@ const rivalRows = () => {
   return clinicRivals().filter((r) => r.km < 2 * rad).map((r) => ({...r, service: rivalService(r), share: overlap(r.km, rad)}))
     .filter((r) => all || mine.includes(r.service)).sort((x, y) => y.share - x.share);
 };
+const rivalClosed = () => clinicRivalsAll().filter((r) => r.km < 2 * radiusKm() && rivalService(r) === CLOSED).map((r) => ({...r, service: CLOSED, share: null}));
 const rivalStore = (patch) => { clinicSave({...clinic, ...patch}); };
 document.getElementById('dm-radius').addEventListener('change', (ev) => rivalStore({radius: ev.target.value}));
 document.getElementById('dm-rshow').addEventListener('change', () => dash.setParams({}));
@@ -801,7 +808,8 @@ dash.draw('rival-summary', (el) => {
   if (!clinic) { el.textContent = '—'; return; }
   const rows = rivalRows(), strong = rows.filter((r) => r.share >= .5), same = document.getElementById('dm-rshow').value !== 'all';
   const top = rows.slice(0, 3).map((r) => `${r.name} (${f.pct0(r.share)})`).join(', ');
-  el.textContent = !rows.length ? `No ${same ? 'clinic offering the same services' : 'dental listing'} overlaps a ${radiusKm()} km radius around your clinic.` : `${rows.length} ${same ? 'clinics offering the same services' : 'dental listings'} overlap your ${radiusKm()} km radius, and ${strong.length} of them cover at least half of it. The biggest overlaps: ${top}.`;
+  const shut = rivalClosed().length;
+  el.textContent = (!rows.length ? `No ${same ? 'clinic offering the same services' : 'dental listing'} overlaps a ${radiusKm()} km radius around your clinic.` : `${rows.length} ${same ? 'clinics offering the same services' : 'dental listings'} overlap your ${radiusKm()} km radius, and ${strong.length} of them cover at least half of it. The biggest overlaps: ${top}.`) + (shut ? ` ${shut} closed or merged ${shut === 1 ? 'listing is' : 'listings are'} left out.` : '');
 });
 dash.draw('rival-map', (el) => {
   const g = D('map_neighbourhoods');
@@ -833,18 +841,19 @@ dash.draw('rival-map', (el) => {
   el.appendChild(l);
 });
 dash.draw('rival-table', (tb) => {
-  fill(tb, rivalRows(), 'name', [[(r) => r.name], [(r) => {
+  fill(tb, [...rivalRows(), ...rivalClosed()], 'name', [[(r) => (closedNote(r) && r.service === CLOSED ? `${r.name} (${closedNote(r).note})` : r.name)], [(r) => {
     const s = document.createElement('select');
     s.className = 'dash-select'; s.setAttribute('aria-label', 'Main service of ' + r.name);
-    s.append(...SERVICES.map((x) => new Option(x, x)));
+    s.append(...[...SERVICES, CLOSED].map((x) => new Option(x, x)));
     s.value = r.service;
     s.addEventListener('change', () => {
-      if (s.value === guessService(r.name)) delete rivalFix[rivalId(r)]; else rivalFix[rivalId(r)] = s.value;
+      const base = closedNote(r) ? CLOSED : guessService(r.name);
+      if (s.value === base) delete rivalFix[rivalId(r)]; else rivalFix[rivalId(r)] = s.value;
       try { localStorage.setItem(RIVAL_KEY, JSON.stringify(rivalFix)); } catch (e) { /* kept for this visit only */ }
       dash.setParams({});
     });
     return s;
-  }], [(r) => (r.km < 1 ? Math.round(r.km * 1000) + ' m' : f.dec(r.km) + ' km'), 'n'], [(r) => f.pct0(r.share), 'n']]);
+  }], [(r) => (r.km < 1 ? Math.round(r.km * 1000) + ' m' : f.dec(r.km) + ' km'), 'n'], [(r) => (r.service === CLOSED ? '—' : f.pct0(r.share)), 'n']]);
 });
 
 /* latest signals */
