@@ -18,6 +18,7 @@
     <button class="dm-tab" role="tab" data-tab="markets" aria-selected="true">Where to advertise</button>
     <button class="dm-tab" role="tab" data-tab="neighbourhoods" aria-selected="false">Postal areas to target</button>
     <button class="dm-tab" role="tab" data-tab="signals" aria-selected="false">Latest signals</button>
+    <button class="dm-tab" role="tab" data-tab="news" aria-selected="false">News and trends</button>
   </div>
 
   <div class="dm-filters">
@@ -109,6 +110,7 @@
     <div class="dm-actions">
       <button class="dm-btn dm-area-copy">Copy this area's postal codes</button>
       <button class="dm-btn dm-go" data-goto="neighbourhoods">See the area's postal areas</button>
+      <button class="dm-btn dm-go" data-goto="news">See news for this area</button>
       <span class="dm-note dm-area-copied" hidden>Copied. Paste them into your ad or mail campaign.</span>
     </div>
   </section>
@@ -272,6 +274,15 @@
         </div>
       </div>
     </div>
+  </section>
+
+  <section id="news" class="dm-page" hidden>
+    <p class="dm-note" data-draw="news-scope">—</p>
+    <div class="dm-two">
+      <div class="dm-card"><h2>Where to focus</h2><p class="dm-note">New homes and population changes that bring new patients.</p><ul class="dm-news" data-draw="news-where"></ul></div>
+      <div class="dm-card"><h2>Services to offer</h2><p class="dm-note">Coverage rules and demand for treatments, including cosmetic injections.</p><ul class="dm-news" data-draw="news-services"></ul></div>
+    </div>
+    <p class="dm-note">Gathered by hand on <span data-draw="news-reviewed">—</span> and not updated automatically. Dates and project timelines change, so check each source before you commit a budget. Service ideas are marketing starting points, not clinical guidance. Check the Ordre des dentistes du Québec's advertising rules before promoting injections or other cosmetic treatments.</p>
   </section>
 
   <details id="method">

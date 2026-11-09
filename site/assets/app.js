@@ -201,7 +201,7 @@ document.querySelectorAll('.dm-go').forEach((b) => b.addEventListener('click', (
   openTab(b.dataset.goto);
   document.querySelectorAll('.dm-tabs').forEach((e) => e.scrollIntoView({block: 'start'}));
 }));
-if (['neighbourhoods', 'signals'].includes(location.hash.slice(1))) openTab(location.hash.slice(1));
+if (['neighbourhoods', 'signals', 'news'].includes(location.hash.slice(1))) openTab(location.hash.slice(1));
 let shownCodes = [];
 document.querySelectorAll('.dm-copy').forEach((b) => b.addEventListener('click', () => {
   const done = () => document.querySelectorAll('.dm-copied').forEach((e) => { e.hidden = false; });
@@ -621,6 +621,28 @@ dash.draw('hmap', (el) => {
   if (hm) legendSwatches(el, SEG);
   else legendRamp(el, (t) => seq(ext[0] + t * (ext[1] - ext[0])), f.pct0(ext[0]), f.pct0(ext[1]) + ' moved in the past year');
 });
+
+/* news: hand-curated, kept outside data/ so a data refresh leaves it alone */
+let news = null;
+fetch('content/news.json').then((r) => (r.ok ? r.json() : null)).then((j) => { news = j; for (const n of ['news-scope', 'news-where', 'news-services', 'news-reviewed']) dash.draw(n); }).catch(() => {});
+const newsRows = (kind) => { const a = P().area; return news ? news.items.filter((r) => r.kind === kind && (r.area === 'all' || !a || r.area === a)) : []; };
+dash.draw('news-reviewed', (el) => { el.textContent = news ? news.reviewed : '—'; });
+dash.draw('news-scope', (el) => {
+  const a = areaNow();
+  el.textContent = !news ? 'The news did not load.' : a ? `Showing news for the ${a.name} and for Quebec as a whole. Clear the area to see news for every area.` : 'Showing news for every area. Pick an area above to narrow it down.';
+});
+const newsList = (kind) => dash.draw('news-' + kind, (ul) => {
+  ul.replaceChildren(...newsRows(kind).map((r) => {
+    const li = document.createElement('li'), t = document.createElement('a'), meta = document.createElement('p'), sum = document.createElement('p'), take = document.createElement('p'), b = document.createElement('b');
+    t.href = r.url; t.target = '_blank'; t.rel = 'noopener'; t.textContent = r.title;
+    meta.className = 'dm-note'; meta.textContent = `${r.source} · ${r.when}${r.area === 'all' ? '' : ' · ' + AREAS[r.area].name}`;
+    sum.textContent = r.summary;
+    b.textContent = 'What it means: '; take.append(b, r.takeaway);
+    li.append(t, meta, sum, take);
+    return li;
+  }));
+});
+newsList('where'); newsList('services');
 
 /* latest signals */
 dash.draw('provchart', (el) => {
