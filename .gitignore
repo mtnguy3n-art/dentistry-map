@@ -13,3 +13,4 @@ pipeline/work/stage3.json
 
 # private notes for the local clinic view; never publish
 site/content/local.json
+site/version.json

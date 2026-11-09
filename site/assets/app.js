@@ -954,6 +954,23 @@ dash.draw('rival-table', (tb) => {
   }], [(r) => toKm(r.km), 'n'], [(r) => (r.share == null ? '—' : f.pct0(r.share)), 'n']]);
 });
 
+/* version stamp: the deploy workflow fills the data- attributes and writes version.json */
+document.querySelectorAll('.dm-version').forEach((el) => {
+  const v = el.dataset.version;
+  if (!v) return;
+  let when = el.dataset.deployed;
+  try { when = new Date(when).toLocaleString(undefined, {year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short'}); } catch (e) { /* keep the UTC stamp */ }
+  el.textContent = `Version ${v} · deployed ${when} · ${el.dataset.commit}`;
+  fetch('version.json', {cache: 'no-store'}).then((r) => (r.ok ? r.json() : null)).then((j) => {
+    if (!j) return;
+    if (Number(j.version) > Number(v)) {
+      const b = document.createElement('b');
+      b.textContent = ` · Version ${j.version} is out. Refresh the page to load it.`;
+      el.appendChild(b);
+    } else el.append(' · latest');
+  }).catch(() => {});
+});
+
 /* latest signals */
 dash.draw('provchart', (el) => {
   const p = D('provinces');
