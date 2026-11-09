@@ -97,6 +97,37 @@
     </div>
   </section>
 
+  <section id="rivals-card" class="dm-card" aria-label="Competition map" data-clinic-on hidden>
+    <h2>Competition map</h2>
+    <p class="dm-note">Each circle is the area a clinic draws most of its patients from. Where another clinic's circle overlaps your clinic's, you compete for the same patients. Overlap is the share of your clinic's circle that the other circle covers.</p>
+    <div class="dm-filters">
+      <label for="dm-radius">Patient radius
+        <select id="dm-radius" class="dash-select">
+          <option value="1">1 km</option><option value="2">2 km</option><option value="3">3 km</option><option value="5">5 km</option><option value="8">8 km</option>
+        </select>
+      </label>
+      <label for="dm-rshow">Show
+        <select id="dm-rshow" class="dash-select">
+          <option value="same">Clinics offering the same services</option>
+          <option value="all">All dental listings</option>
+        </select>
+      </label>
+    </div>
+    <fieldset class="dm-zones">
+      <legend>Services your clinic offers</legend>
+      <div data-draw="rival-services"></div>
+    </fieldset>
+    <p data-draw="rival-summary">—</p>
+    <div class="dm-chart dm-map" data-draw="rival-map">—</div>
+    <div class="dm-scroll">
+      <table aria-label="Competing clinics">
+        <thead><tr><th>Clinic</th><th>Main service (guessed from the name)</th><th class="n">Distance</th><th class="n">Overlap</th></tr></thead>
+        <tbody data-draw="rival-table"></tbody>
+      </table>
+    </div>
+    <p class="dm-note">Services are guessed from each listing's name, so a general clinic that also does implants shows as general dentistry. Correct a guess in the table and it is saved in this browser. Listings come from OpenStreetMap and are about a third complete. Circles are straight-line distance, not driving time, and the same size for every clinic. Map data © OpenStreetMap contributors.</p>
+  </section>
+
   <section id="city-card" class="dm-card" aria-label="Selected city" hidden>
     <div class="dm-head">
       <div><h2 data-draw="city-name" data-field="name">—</h2><p class="dm-note" data-draw="city-sub">—</p></div>
