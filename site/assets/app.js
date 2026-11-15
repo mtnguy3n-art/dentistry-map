@@ -654,11 +654,34 @@ newsList('where'); newsList('services');
 const CLINIC_KEY = 'dm-clinic';
 let clinic = null, clinicEditing = false;
 try { clinic = JSON.parse(localStorage.getItem(CLINIC_KEY)); } catch (e) { clinic = null; }
+/* own photo of the clinic (R7): kept in this browser only, with the clinic's location as its key; never sent or put in the URL */
+const PHOTO_KEY = 'dm-clinic-photo';
+let ownStored = null, ownVer = 0, ownErr = '';
+try { ownStored = JSON.parse(localStorage.getItem(PHOTO_KEY)); } catch (e) { ownStored = null; }
+const ownPhoto = () => dmPhoto.ownPhotoFor(ownStored, clinic);
+/* v = {key, img} or null. False when the browser refuses to store it; the previous photo then stays. */
+const ownSet = (v) => {
+  try { if (v) localStorage.setItem(PHOTO_KEY, JSON.stringify(v)); else localStorage.removeItem(PHOTO_KEY); } catch (e) { if (v) return false; }
+  ownStored = v; ownVer++; return true;
+};
+/* QA N-8: every clinic location saved during this visit stays private for photo lookups until the page is closed,
+   so "Remove" or "Change" never starts a lookup of the old location (for example while it is the competition centre) */
+const privateSpots = [];
+const keepPrivate = (c) => { if (c && dmPhoto.okPoint(c.lat, c.lon)) privateSpots.push({lat: c.lat, lon: c.lon}); };
+keepPrivate(clinic);
 const clinicSave = (c) => {
+  keepPrivate(clinic); keepPrivate(c);
+  /* the own photo belongs to the saved location: removing the clinic or moving it deletes the photo; a new name keeps it */
+  if (ownStored && ownStored.key !== dmPhoto.ownKey(c)) ownSet(null);
+  ownErr = '';
   clinic = c; clinicEditing = false;
   try { if (c) localStorage.setItem(CLINIC_KEY, JSON.stringify(c)); else localStorage.removeItem(CLINIC_KEY); } catch (e) { /* kept for this visit only */ }
   dash.setParams({});
 };
+/* text for the location field that parseSpot reads back as the same numbers: a whole number such as 46 is written "46.0"
+   (QA N-15, so "Change" then "Save" with only a new name works for a clinic saved at whole-number coordinates) */
+const spotNum = (v) => { const s = String(v); return /^-?\d+\.\d+$/.test(s) ? s : Number(v).toFixed(Number.isInteger(Number(v)) ? 1 : 7); };
+const spotText = (lat, lon) => `${spotNum(lat)}, ${spotNum(lon)}`;
 const parseSpot = (s) => {
   const m = s.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/) || s.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/) || s.match(/^\s*(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)\s*$/);
   return m ? {lat: Number(m[1]), lon: Number(m[2])} : null;
@@ -714,7 +737,7 @@ document.querySelectorAll('.dm-clinic-form').forEach((fm) => fm.addEventListener
 }));
 document.querySelectorAll('.dm-clinic-edit').forEach((b) => b.addEventListener('click', () => {
   clinicEditing = true;
-  document.querySelectorAll('.dm-clinic-form').forEach((fm) => { fm.elements.name.value = clinic.name; fm.elements.spot.value = clinic.lat + ', ' + clinic.lon; });
+  document.querySelectorAll('.dm-clinic-form').forEach((fm) => { fm.elements.name.value = clinic.name; fm.elements.spot.value = spotText(clinic.lat, clinic.lon); });
   dash.setParams({});
 }));
 document.querySelectorAll('.dm-clinic-remove').forEach((b) => b.addEventListener('click', () => clinicSave(null)));
@@ -882,12 +905,113 @@ clinicPicker(hubIn, document.getElementById('dm-hub-list'), (r) => { hubIn.value
 });
 document.querySelectorAll('.dm-clinic-form').forEach((fm) => {
   clinicPicker(fm.elements.name, fm.querySelector('[role=listbox]'), (r) => {
-    fm.elements.name.value = r.name; fm.elements.spot.value = `${r.lat}, ${r.lon}`;
+    fm.elements.name.value = r.name; fm.elements.spot.value = spotText(r.lat, r.lon);
     fm.querySelectorAll('.dm-clinic-bad').forEach((e) => { e.hidden = true; });
   }, () => (clinic ? nearestTo(clinic, 10) : shownMarket() ? inMarket(shownMarket(), 10) : []));
 });
 
 dash.draw('hub-name', (el) => { const h = hubNow(); el.textContent = h ? `Competition around ${h.name}` : 'Competition map'; });
+/* photo block under the chosen clinic's name. Free street photos come from Panoramax (no key), only where the R1 guard
+   allows a lookup; Thu's own clinic and anything within 100 m of it is never looked up. */
+const loadImage = (url, signal) => new Promise((res) => {
+  const img = new Image();
+  const end = (ok) => { img.onload = img.onerror = null; if (signal) signal.removeEventListener('abort', stop); res(ok); };
+  const stop = () => { img.src = ''; end(false); };
+  img.referrerPolicy = 'no-referrer';
+  /* resolves with the loaded image itself, so the page shows this one and does not download it again (QA N-9) */
+  img.onload = () => (img.decode ? img.decode().catch(() => {}) : Promise.resolve()).then(() => end(img.naturalWidth > 0 ? img : false));
+  img.onerror = () => end(false);
+  if (signal) { if (signal.aborted) { res(false); return; } signal.addEventListener('abort', stop); }
+  img.src = url;
+});
+const photoLookup = dmPhoto.createLookup({fetch: (...a) => fetch(...a), loadImage, onDone: () => dash.draw('hub-photo')});
+const photoBlock = (el, c) => {
+  const v = dmPhoto.view(c, clinic, {guard: privateSpots, own: ownPhoto()});
+  const got = v && v.lookup ? photoLookup.get(c) : {state: 'none', photo: null};
+  const sig = v ? [v.link, v.privacy, v.state, v.state === 'own' ? ownVer : '', got.state, got.photo ? got.photo.url : '', c.name].join('|') : '';
+  if (el.dataset.sig === sig) return; /* same content: keep the image as it is, no flicker on redraws */
+  el.dataset.sig = sig;
+  el.hidden = !v;
+  if (!v) { el.replaceChildren(); return; }
+  const link = () => { const a = document.createElement('a'); a.href = v.link; a.target = '_blank'; a.rel = 'noopener noreferrer'; a.textContent = 'View on Google Maps'; return a; };
+  const note = (...parts) => { const p = document.createElement('p'); p.className = 'dm-note'; p.append(...parts); return p; };
+  const plain = (t) => note(t + ' \u00b7 ', link());
+  const out = [];
+  if (v.state === 'own') {
+    /* Thu's own photo: a data address held in this browser, so showing it makes no network request */
+    const img = document.createElement('img');
+    img.className = 'dm-photo-img'; img.alt = v.alt; img.hidden = true;
+    img.addEventListener('load', () => { img.hidden = false; }, {once: true});
+    img.src = v.img;
+    out.push(img, plain(v.text));
+  } else if (got.state === 'loading') out.push(plain('Loading photo...'));
+  else if (got.state === 'photo') {
+    const ph = got.photo, cr = dmPhoto.credit(ph);
+    let img = got.image;
+    if (img) img.hidden = false; /* already loaded within the 10 s limit: shown together with its credit (QA N-9) */
+    else {
+      img = document.createElement('img'); img.referrerPolicy = 'no-referrer'; img.decoding = 'async'; img.hidden = true;
+      /* shown only once loaded; if the browser drops it after all, fall back to "Photo not available", never a broken image */
+      img.addEventListener('load', () => { img.hidden = false; }, {once: true});
+      img.addEventListener('error', () => { photoLookup.fail(c); dash.draw('hub-photo'); }, {once: true});
+      img.src = ph.url;
+    }
+    img.className = 'dm-photo-img'; img.alt = `Street view of ${c.name}`;
+    const src = cr.page ? Object.assign(document.createElement('a'), {href: cr.page, target: '_blank', rel: 'noopener noreferrer', textContent: cr.source}) : cr.source;
+    out.push(img, note(cr.before, src, cr.after + ' \u00b7 ' + dmPhoto.NOTE + ' \u00b7 ', link()));
+  } else out.push(plain(v.text));
+  if (v.privacy) out.push(note(v.privacy));
+  el.replaceChildren(...out);
+};
+dash.draw('hub-photo', (el) => photoBlock(el, hubNow()));
+dash.draw('clinic-photo', (el) => photoBlock(el, clinic && !clinicEditing ? {...clinic, mine: true} : null));
+/* own photo buttons in the Your clinic card (AC-5.1 to 5.8): the file is read here, shrunk to 800 px and re-saved as JPEG,
+   which also drops hidden camera data such as GPS. Nothing is uploaded. */
+const decodeImage = (file) => (typeof createImageBitmap === 'function' ? createImageBitmap(file) : new Promise((res, rej) => {
+  const u = URL.createObjectURL(file), img = new Image();
+  img.onload = () => { URL.revokeObjectURL(u); res(img); };
+  img.onerror = () => { URL.revokeObjectURL(u); rej(new Error('not an image')); };
+  img.src = u;
+}));
+const ownRead = async (file) => {
+  const why = dmPhoto.ownFileProblem(file);
+  if (why) return {why};
+  let pic;
+  try { pic = await decodeImage(file); } catch (e) { return {why: 'read'}; }
+  const size = dmPhoto.fitSize(pic.width || pic.naturalWidth, pic.height || pic.naturalHeight);
+  if (!size) return {why: 'read'};
+  const cv = document.createElement('canvas'), g = cv.getContext('2d');
+  cv.width = size.w; cv.height = size.h;
+  if (!g) return {why: 'read'};
+  g.fillStyle = '#fff'; g.fillRect(0, 0, size.w, size.h); /* transparent PNG areas become white, not black */
+  g.imageSmoothingQuality = 'high'; g.drawImage(pic, 0, 0, size.w, size.h);
+  if (pic.close) pic.close();
+  const img = dmPhoto.encodeWithin((q) => cv.toDataURL('image/jpeg', q));
+  return img ? {img} : {why: 'big'};
+};
+let ownTurn = 0;
+document.querySelectorAll('.dm-own').forEach((box) => {
+  const add = box.querySelector('.dm-own-add'), rm = box.querySelector('.dm-own-remove'), file = box.querySelector('.dm-own-file');
+  add.addEventListener('click', () => file.click());
+  file.addEventListener('change', async () => {
+    const f = file.files && file.files[0], key = dmPhoto.ownKey(clinic), turn = ++ownTurn;
+    file.value = ''; /* the same file can be picked again */
+    if (!f || !key) return;
+    if (ownErr) { ownErr = ''; dash.draw('clinic-own'); } /* a new try: a repeated message is announced again */
+    const r = await ownRead(f);
+    if (turn !== ownTurn || dmPhoto.ownKey(clinic) !== key) return; /* the clinic changed meanwhile: drop it */
+    ownErr = r.img ? (ownSet({key, img: r.img}) ? '' : dmPhoto.ownError('storage')) : dmPhoto.ownError(r.why);
+    dash.setParams({});
+  });
+  rm.addEventListener('click', () => { ownSet(null); ownErr = ''; dash.setParams({}); add.focus(); });
+});
+dash.draw('clinic-own', (box) => {
+  const own = !!ownPhoto();
+  box.querySelector('.dm-own-add').textContent = own ? 'Replace photo' : 'Add your own photo';
+  box.querySelector('.dm-own-remove').hidden = !own;
+  const er = box.querySelector('.dm-own-error');
+  er.textContent = ownErr; er.hidden = !ownErr;
+});
 dash.draw('rival-services', (el) => {
   if (!el.children.length) {
     el.replaceChildren(...SERVICES.map((s) => {

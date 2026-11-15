@@ -60,7 +60,17 @@
 
   <section id="clinic-card" class="dm-card" aria-label="Your clinic">
     <div class="dm-head">
-      <div><h2 data-draw="clinic-name">Your clinic</h2><p class="dm-note" data-draw="clinic-sub">—</p></div>
+      <div><h2 data-draw="clinic-name">Your clinic</h2><p class="dm-note" data-draw="clinic-sub">—</p><div class="dm-photo" data-draw="clinic-photo" hidden></div>
+        <div class="dm-own" data-draw="clinic-own" data-clinic-on hidden>
+          <div class="dm-actions">
+            <button type="button" class="dm-btn dm-own-add" aria-describedby="dm-own-where">Add your own photo</button>
+            <button type="button" class="dm-btn dm-own-remove" hidden>Remove photo</button>
+            <span class="dm-note" id="dm-own-where">Saved in this browser only.</span>
+          </div>
+          <input type="file" class="dm-own-file" accept="image/jpeg,image/png" tabindex="-1" aria-hidden="true" hidden>
+          <p class="dm-note dm-own-error" role="alert" hidden></p>
+        </div>
+      </div>
       <div class="dm-actions" data-clinic-on hidden>
         <button class="dm-btn dm-clinic-area">Show the clinic's patient area</button>
         <button class="dm-btn dm-hub-mine">See its competition</button>
@@ -327,6 +337,7 @@
   <section id="competition" class="dm-page" hidden>
     <div class="dm-card">
       <h2 data-draw="hub-name">Competition map</h2>
+      <div class="dm-photo" data-draw="hub-photo" hidden></div>
       <p class="dm-note">Pick any dental clinic to see which nearby clinics compete with it for patients. Each circle is the area a clinic draws most of its patients from. Overlap is the share of the chosen clinic's circle that another clinic's circle covers.</p>
       <div class="dm-filters">
         <div class="dm-city">
@@ -397,6 +408,7 @@
 </div>
 <script src="assets/d3.min.js"></script>
 <script src="assets/dash.js"></script>
+<script src="assets/photo.js"></script>
 <script src="assets/app.js"></script>
 </body>
 </html>

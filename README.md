@@ -10,6 +10,40 @@ python3 -m http.server 8123 --directory site
 
 Then open http://localhost:8123. It needs a web server because the page loads its data with `fetch`, so opening `index.html` directly won't work.
 
+## Run the tests
+
+```bash
+node --test
+```
+
+Needs Node 18 or later, with no packages to install. The tests are in `tests/` and use made-up clinics and coordinates only. They cover the clinic photo rules: which street photo is chosen, the 100 m privacy guard around your own clinic, reading Mapillary and Panoramax answers, the credit line, the Google Maps link, the Panoramax lookup (time limit, errors, one lookup per clinic, fast clinic switching, the image downloaded once), and your own photo (which files are accepted, shrinking to 800 px, the storage budget, the error messages, and which clinic it belongs to). They make no network calls: the lookup tests use a fake source.
+
+**Browser check of the clinic photo (live Panoramax):** start Chrome with `--headless=new --remote-debugging-port=9333`, then run `node tests/browser/photo-inc3.mjs`. It serves `site/` to Chrome itself, so no web server is needed, and it calls the real Panoramax service. It checks the loading text, the photo and its credit line, "Photo not available" when there is no photo, when the source fails or is too slow (10 s), fast clinic switching, light and dark at 375 px, and that nothing is ever asked for your own clinic or within 100 m of it.
+
+**Browser check of your own photo:** with the same Chrome, run `node tests/browser/photo-inc5.mjs`. It makes fake test pictures in Chrome and gives them to the real file picker. It checks add, replace and remove, the shrinking to 800 px, that the photo is still there after reopening the page and shows as the competition centre, the error messages (not an image, a broken file, over 20 MB, storage full), that nothing is sent anywhere, light and dark at 375 px, that "Remove" or "Change" on your clinic never looks up its old location, and (live Panoramax) that a street photo is downloaded once and its credit never shows before it.
+
+**Final browser check:** with the same Chrome, run `node tests/browser/photo-inc6.mjs`. It checks that a clinic saved at whole-number coordinates (for example 46.0, -71.0) can be renamed with "Change" and keeps its photo, that the own-photo error line is readable in light and dark, the screen-reader names of the photos, links and buttons, and a regression of the page: labels from `meta.json`, the OpenStreetMap credit, the limits notes, the filters, no horizontal scrolling at 375 px and no console errors.
+
+**Photo coverage measurement:** `node tests/coverage/panoramax-coverage.mjs` (needs the network, no Chrome). It takes the same 20 Québec listings from `site/data/dentists.json` every time (6 Québec City, 6 Montréal, 8 regional towns), asks Panoramax for each with the page's own rules and prints which ones get a usable photo. A Sherbrooke listing known to have a photo is checked as a control and not counted. Only listing coordinates are sent, never a name.
+
+## Clinic photos
+
+When you choose a clinic as the centre of the Competition tab, the page looks for a free street photo of it on [Panoramax](https://panoramax.fr) (no key or account needed). It shows "Loading photo...", then the photo with its credit, licence and date, or "Photo not available". The "View on Google Maps" link is always there. Your own clinic, and any clinic within 100 m of it, is never looked up.
+
+**Your own photo:** once your clinic is saved in the "Your clinic" card, click "Add your own photo" and pick a JPEG or PNG (up to 20 MB). iPhone photos are often HEIC, which is not accepted: on a Mac, open the photo in Photos and use File → Export → Export 1 Photo with JPEG as the kind (or set the iPhone to Settings → Camera → Formats → Most Compatible) before adding it. The page shrinks it to 800 px, saves it in this browser only and shows it in the card and in the Competition tab when your clinic is the centre. "Replace photo" and "Remove photo" are next to it. Removing your clinic, or changing its location, deletes the photo; changing only the name keeps it. The photo is never uploaded, never in the page address and never in the project files. Use a fake or test picture when trying it out.
+
+To see a street photo, open for example http://localhost:8123/?hub=45.39869,-71.93327#competition (Centre Dentaire Gagné Rémillard, Sherbrooke).
+
+**Coverage today is very thin.** On 2026-11-14, 0 of 20 sample Québec listings (6 Québec City, 6 Montréal, 8 regional towns) had a usable Panoramax photo; Panoramax had no photo at all within about 50 m of any of them. So expect "Photo not available" and use the "View on Google Maps" link for almost every clinic until Mapillary is on. The list is in `docs/CHANGELOG.md` (increment 6), and the measurement can be re-run (see "Run the tests").
+
+**Mapillary (not switched on yet).** The design adds Mapillary, which has much better street-photo coverage in Québec, ahead of Panoramax (`docs/03-solution-design.md` §3 and §7, step 4). It needs a free Mapillary client token, so that step is on hold. To switch it on:
+
+1. Whoever owns the project's accounts creates a free developer account at mapillary.com (Meta login or email; no billing, no card) and registers an app to get its client token. The token is read-only and public in the page, as in Mapillary's own viewer, and can be replaced in minutes.
+2. The team builds step 4: one token constant in `site/assets/photo.js` (empty means Panoramax only), the Mapillary search first and Panoramax when Mapillary has nothing suitable or fails, with tests with no token, a good token and a wrong token. The rules for choosing a Mapillary photo and its credit line are already in `photo.js`.
+3. The token is pasted into that constant and QA checks it before it is merged.
+
+Pasting a token today does nothing: the constant and the Mapillary lookup are not built yet.
+
 ## Deploy with Git
 
 The site is plain files in `site/`, with no build step.
@@ -48,12 +82,18 @@ The workflow is also scheduled for February 1, but GitHub turns schedules off in
 | `site/index.html` | Page layout |
 | `site/assets/app.js` | Charts, maps, tables and filters |
 | `site/assets/dash.js` | Loads data, holds filters, redraws |
+| `site/assets/photo.js` | Rules for the clinic photo block (photo choice, privacy guard, source parsing, credit line, Google Maps link, Panoramax lookup, own-photo rules), tested in Node |
 | `site/assets/styles.css` | Styles, including light and dark themes |
 | `site/data/` | Data files used by the page |
+| `tests/` | Node tests (`node --test`); `tests/browser/` has the browser checks, `tests/qa/` QA's own checks, `tests/coverage/` the photo coverage measurement |
 | `pipeline/` | Scripts, boundaries and saved 2021 Census results |
 
 ## Data and licences
 
 - Statistics Canada data: [Open Government Licence – Canada](https://open.canada.ca/en/open-government-licence-canada).
 - Dentist pins: © OpenStreetMap contributors, [Open Database Licence](https://www.openstreetmap.org/copyright). Keep this credit on the page.
+- Clinic street photos: [Panoramax](https://panoramax.fr) contributors, under the licence each photo carries, either [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/) or [Licence Ouverte 2.0 (etalab-2.0)](https://www.etalab.gouv.fr/licence-ouverte-open-licence/). Both allow reuse with credit. The page shows the credit under each photo: "Photo: [contributor] via Panoramax, [licence] · Photo taken [Month YYYY]", with "Panoramax" linking to the photo's page. Photos with no licence are never shown. Faces and licence plates are blurred by Panoramax. The photos are shown from Panoramax's servers, never copied into this repository.
+- Mapillary (once switched on, see "Clinic photos"): imagery by Mapillary contributors under [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/), commercial use allowed with credit. The credit line will read "Photo: [contributor] via Mapillary, CC BY-SA 4.0 · Photo taken [Month YYYY]", with "Mapillary" linking to the photo on mapillary.com.
+- "View on Google Maps" is only a link (Google's free Maps URLs, no key). No Google content is shown on the page.
+- Your own clinic photo is yours. It stays in your browser and is never published or added to the repository.
 - D3 7.9.0 (`site/assets/d3.min.js`): ISC licence.
