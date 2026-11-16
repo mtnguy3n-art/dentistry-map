@@ -16,7 +16,12 @@
   /* QA-W3: a last part that is a number (all digits, or "0x" hex) makes the browser read the host as an IPv4 address;
      only a plain dotted IPv4 address (four numbers 0 to 255, no leading zero) is kept */
   const NUMERIC = /^([0-9]+|0x[0-9a-f]*)$/i;
-  const ipv4 = (labels) => labels.length === 4 && labels.every((x) => /^(0|[1-9][0-9]{0,2})$/.test(x) && Number(x) < 256);
+  /* N-W5: never a private, loopback, link-local or "this network" address: 0/8, 10/8, 127/8, 169.254/16, 172.16/12,
+     192.168/16. Same list as pipeline/work/weblink.py (_private_ipv4) */
+  const privateIpv4 = ([a, b]) => a === 0 || a === 10 || a === 127 || (a === 169 && b === 254) ||
+    (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168);
+  const ipv4 = (labels) => labels.length === 4 && labels.every((x) => /^(0|[1-9][0-9]{0,2})$/.test(x) && Number(x) < 256) &&
+    !privateIpv4(labels.map(Number));
   const hostOk = (host) => {
     const labels = (host.endsWith('.') ? host.slice(0, -1) : host).split('.');
     return labels.length > 1 && labels.every((x) => LABEL.test(x)) && (!NUMERIC.test(labels[labels.length - 1]) || ipv4(labels));

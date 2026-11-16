@@ -25,8 +25,16 @@ def host_ok(host):
 
 
 def _ipv4(labels):
-    """QA-W3: only a plain dotted IPv4 address (four numbers 0 to 255, no leading zero) may end in a number."""
-    return len(labels) == 4 and all(re.match(r'^(0|[1-9][0-9]{0,2})$', x) and int(x) < 256 for x in labels)
+    """QA-W3: only a plain dotted IPv4 address (four numbers 0 to 255, no leading zero) may end in a number.
+    N-W5: and never a private, loopback, link-local or "this network" address (_private_ipv4)."""
+    return (len(labels) == 4 and all(re.match(r'^(0|[1-9][0-9]{0,2})$', x) and int(x) < 256 for x in labels)
+            and not _private_ipv4([int(x) for x in labels]))
+
+
+def _private_ipv4(n):
+    """N-W5: 0/8, 10/8, 127/8, 169.254/16, 172.16/12, 192.168/16. Same list as site/assets/web.js (privateIpv4)."""
+    a, b = n[0], n[1]
+    return a in (0, 10, 127) or (a == 169 and b == 254) or (a == 172 and 16 <= b <= 31) or (a == 192 and b == 168)
 
 
 def port_ok(port):

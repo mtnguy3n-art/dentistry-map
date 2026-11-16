@@ -3,7 +3,9 @@
 // Independent of the developer's tests/browser/web-inc345.mjs.
 // Needs: python3 -m http.server 8123 --directory site;
 //        python3 -m http.server 8124 --directory <dir with probe.html> (see PROBE below; created by this script);
-//        Chrome --headless=new --remote-debugging-port=9333 (fresh profile, or the page may come from the HTTP cache).
+//        Chrome --headless=new --remote-debugging-port=9333 (fresh profile, or the page may come from the HTTP cache)
+//          --host-resolver-rules="MAP probe.fictive.test 127.0.0.1" (N-W5, increment 6: the page now refuses loopback
+//          and private IPv4 hosts, so the probe is reached through a fictive dotted name that Chrome maps to 127.0.0.1).
 // Run: node tests/qa/qa-web-inc345-browser.mjs
 // Data: public OpenStreetMap listings from site/data/dentists.json, plus FAKE listings (fictive names and sites) added
 // to the data file in the browser only (DevTools Fetch), placed in the forest north of Chibougamau, far from any real
@@ -13,7 +15,7 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const BASE = process.env.BASE || 'http://localhost:8123/', CDP = 'http://localhost:9333';
-const PROBE = process.env.PROBE || 'http://127.0.0.1:8124/probe.html'; /* a plain IPv4 host passes WR1b */
+const PROBE = process.env.PROBE || 'http://probe.fictive.test:8124/probe.html'; /* N-W5: 127.0.0.1 is refused now; see Needs above */
 const PROBE_DIR = process.env.PROBE_DIR;
 if (PROBE_DIR) fs.writeFileSync(path.join(PROBE_DIR, 'probe.html'), '<!doctype html><title>probe</title><script>document.title = JSON.stringify({opener: window.opener === null ? "null" : "set", referrer: document.referrer});</script>');
 
@@ -206,7 +208,7 @@ v = await centre(F.n20);
 const t20 = await title();
 check('Neighbour 20 m: the page treats the centre as her clinic (iteration 1 30 m rule): her name with her website, consistent', t20 === `Competition around ${SAVED.name}` && tail(v.text) === 'View on Google Maps · Website: m.facebook.com', {t20, text: v.text});
 v = await centre(F.probe);
-check('Fake 1 km away from her clinic: normal rule (own website)', tail(v.text) === `View on Google Maps · Website: 127.0.0.1`, v.text);
+check('Fake 1 km away from her clinic: normal rule (own website)', tail(v.text) === `View on Google Maps · Website: ${new URL(PROBE).hostname}`, v.text);
 
 // 9. Real data: saved clinic on a real listing, centre = real neighbours at 66 m and 79 m
 const DD = JSON.parse(fs.readFileSync(path.join(HERE, '../../site/data/dentists.json'), 'utf8'));
@@ -257,7 +259,7 @@ check('AC-9.4 no centre: no line, no "Website not listed", no search link', v.hi
 
 // 13. AC-14.6 / WR7 / W8: outside requests made by the page itself during the whole run
 const hosts = [...new Set(reqs.map((u) => { try { return new URL(u).host; } catch { return u.slice(0, 20); } }))].filter((h) => h && !/^localhost:8123$/.test(h) && !/^(data|blob|about)/.test(h));
-check('AC-14.6 page contacted only api.panoramax.xyz on its own (127.0.0.1:8124 only from the click in step 6)', hosts.every((h) => h === 'api.panoramax.xyz'), hosts);
+check('AC-14.6 page contacted only api.panoramax.xyz on its own (the probe only from the click in step 6)', hosts.every((h) => h === 'api.panoramax.xyz'), hosts);
 const pre = await ev(`document.querySelectorAll('link[rel~=prefetch], link[rel~=preconnect], link[rel~=dns-prefetch], link[rel~=prerender], script[type=speculationrules]').length`);
 check('WR7 no prefetch / preconnect / speculation rules on the page', pre === 0, pre);
 check('No console errors or warnings during the run', errs.length === 0, errs.slice(0, 3));

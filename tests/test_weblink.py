@@ -102,8 +102,21 @@ class CleanWebsite(unittest.TestCase):
         for v in ('https://999.999.999.999', 'https://fictive.123', 'https://a.9', 'https://1.2.3', 'https://256.1.1.1',
                   'https://010.1.1.1', 'https://0x7f.1', 'https://a.0x7f'):
             self.check({'website': v}, None)
-        for v in ('https://192.0.2.1/', 'https://0.0.0.0', 'https://123.fictive.ca'):
+        for v in ('https://192.0.2.1/', 'https://123.fictive.ca'):
             self.check({'website': v}, v)
+
+    def test_private_ipv4_refused(self):
+        """N-W5: private, loopback, link-local and "this network" IPv4 addresses refused, same list as the page."""
+        for v in ('https://0.0.0.0', 'http://0.1.2.3', 'http://10.0.0.1', 'http://10.255.255.255', 'http://127.0.0.1',
+                  'http://127.0.0.1:8124/x', '127.255.0.1.', 'http://169.254.169.254/latest', 'http://172.16.0.1',
+                  'http://172.31.255.255', 'http://192.168.0.1', '192.168.1.10'):
+            self.check({'website': v}, None)
+        for v in ('http://1.2.3.4', 'http://9.255.255.255', 'http://11.0.0.1', 'http://126.0.0.1', 'http://128.0.0.1',
+                  'http://169.253.0.1', 'http://169.255.0.1', 'http://172.15.0.1', 'http://172.32.0.1',
+                  'http://192.167.0.1', 'http://192.169.0.1', 'https://10.fictive.ca', 'https://192.168.fictive.ca'):
+            self.check({'website': v}, v)
+        # the next tag is used when the first one is a private address
+        self.check({'website': 'http://192.168.0.1', 'url': 'cliniquefictive.ca'}, 'https://cliniquefictive.ca')
 
     def test_unicode_spaces_and_bom_refused(self):
         """QA-W3: U+0085, U+FEFF, U+00A0 and U+2028 refused inside a value, as in the page."""

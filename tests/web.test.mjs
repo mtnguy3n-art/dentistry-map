@@ -219,7 +219,21 @@ test('QA-W3: numeric last host part refused unless a plain IPv4 address; U+0085 
   for (const u of ['https://999.999.999.999', 'https://fictive.123', 'https://a.9', 'https://1.2.3', 'https://256.1.1.1',
     'https://010.1.1.1', 'https://0x7f.1', 'https://a.0x7f', 'https://fictive.ca/\u0085', 'https://fictive.ca/\ufeff',
     'https://fictive.ca/\u00a0', 'https://fictive.ca/\u2028']) assert.equal(W.safeUrl(u), '', u);
-  for (const u of ['https://192.0.2.1', 'https://0.0.0.0/x', 'https://fictive.ca/\u00e9', 'https://123.fictive.ca'])
+  for (const u of ['https://192.0.2.1', 'https://fictive.ca/\u00e9', 'https://123.fictive.ca'])
+    assert.equal(W.safeUrl(u), u, u);
+});
+
+test('N-W5: private, loopback, link-local and "this network" IPv4 addresses refused; public ones and look-alike names kept', () => {
+  for (const u of ['https://0.0.0.0/x', 'http://0.1.2.3', 'http://10.0.0.1', 'http://10.255.255.255', 'http://127.0.0.1',
+    'http://127.0.0.1:8124/x', 'http://127.255.0.1.', 'http://169.254.169.254/latest', 'http://172.16.0.1', 'http://172.31.255.255',
+    'http://192.168.0.1', 'https://192.168.1.10/']) {
+    assert.equal(W.safeUrl(u), '', u);
+    assert.equal(W.siteName(u), '', u);
+    assert.equal(W.linkFor({lat: 49.9, lon: -74.3, name: 'Clinique Fictive', web: u}, {town: 'Chibougamau'}).kind, 'search', u);
+  }
+  for (const u of ['http://1.2.3.4', 'http://9.255.255.255', 'http://11.0.0.1', 'http://126.0.0.1', 'http://128.0.0.1',
+    'http://169.253.0.1', 'http://169.255.0.1', 'http://172.15.0.1', 'http://172.32.0.1', 'http://192.167.0.1',
+    'http://192.169.0.1', 'https://192.0.2.1', 'https://10.fictive.ca', 'https://127.0.0.1.fictive.ca', 'https://192.168.fictive.ca'])
     assert.equal(W.safeUrl(u), u, u);
 });
 
