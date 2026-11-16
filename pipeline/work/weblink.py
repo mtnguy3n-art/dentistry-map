@@ -7,12 +7,25 @@ import re
 TAGS = ('website', 'contact:website', 'url')
 MAX_LEN = 500
 _OTHER_SCHEME = re.compile(r'^[a-z][a-z0-9+-]*:', re.I)  # javascript:, mailto:, tel:, ftp:, ...
-_HOST = re.compile(r'^[A-Za-z0-9.-]+$')
+_LABEL = re.compile(r'^[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?$')  # one dot-separated part of a host name
+
+
+def host_ok(host):
+    """Dotted host of letters, digits and "-" only, with no empty part (QA-W1); one trailing dot may stay."""
+    if host.endswith('.'):
+        host = host[:-1]
+    labels = host.split('.')
+    return len(labels) > 1 and all(_LABEL.match(x) for x in labels)
+
+
+def port_ok(port):
+    """ASCII digits only, 1 to 65535 (QA-W2: str.isdigit() alone accepts "²")."""
+    return port.isascii() and port.isdigit() and 0 < int(port) < 65536
 
 
 def _clean_piece(s):
     s = s.strip()
-    if not s or re.search(r'\s', s) or '\\' in s:
+    if not s or re.search(r'[\s\x00-\x1f\x7f]', s) or '\\' in s:  # spaces, control characters, backslash
         return None
     at, slash = s.find('@'), s.find('/')
     if at >= 0 and (slash < 0 or at < slash):  # an e-mail address
@@ -31,9 +44,9 @@ def _clean_piece(s):
     if '@' in netloc:  # user name or password part
         return None
     host, sep, port = netloc.partition(':')
-    if sep and not port.isdigit():
+    if sep and not port_ok(port):
         return None
-    if not _HOST.match(host) or '.' not in host:
+    if not host_ok(host):
         return None
     return url
 

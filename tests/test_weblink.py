@@ -77,6 +77,27 @@ class CleanWebsite(unittest.TestCase):
         self.check({'website': 'https://m.facebook.com/fakeclinic'}, 'https://m.facebook.com/fakeclinic')
 
 
+    def test_empty_host_parts_refused(self):
+        """QA-W1: every dot-separated part of the host is a real label; one trailing dot may stay."""
+        for v in ('https://.', 'https://..', 'https://-.-', 'https://a..ca', 'https://.ca', 'https://-xyz.ca',
+                  'https://xyz-.ca', 'https://a.', 'xyz..ca'):
+            self.check({'website': v}, None)
+        self.check({'website': 'https://xyz.ca.'}, 'https://xyz.ca.')
+        self.check({'website': 'https://ma-clinique.fictive.ca'}, 'https://ma-clinique.fictive.ca')
+
+    def test_port_range_and_ascii(self):
+        """QA-W2: port is ASCII digits, 1 to 65535."""
+        for v in ('https://xyz.ca:\u00b2', 'https://xyz.ca:\u0663', 'https://xyz.ca:0', 'https://xyz.ca:65536',
+                  'https://xyz.ca:99999', 'https://xyz.ca:', 'https://xyz.ca:-1'):
+            self.check({'website': v}, None)
+        self.check({'website': 'https://xyz.ca:65535/'}, 'https://xyz.ca:65535/')
+        self.check({'website': 'https://xyz.ca:1'}, 'https://xyz.ca:1')
+
+    def test_control_characters_refused(self):
+        for v in ('https://xyz.ca/\x07bell', 'https://xyz.ca\x00', 'https://xyz.ca/\x7f'):
+            self.check({'website': v}, None)
+
+
 class Counts(unittest.TestCase):
     """WR9 (AC-14.2): counts for Canada and Québec (market ids starting with 24)."""
 
