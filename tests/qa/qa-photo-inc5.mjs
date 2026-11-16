@@ -1,4 +1,6 @@
 // QA browser check, clinic photo increment 5: Thu's own photo for "Your clinic", plus the N-8 and N-9 fixes.
+// Updated for iteration 2, increment 3: N-9 centre A has no website, so its line ends with " · Website not listed · Search the web";
+// the checks near her clinic stay exact (no website part there, W11).
 // Independent of the developer's tests/browser/photo-inc5.mjs.
 // Needs: python3 -m http.server 8123 --directory site, and Chrome started with --headless=new --remote-debugging-port=9333.
 // Run: node tests/qa/qa-photo-inc5.mjs   (the N-8 and N-9 parts use the live Panoramax service; some requests are held on purpose)
@@ -311,9 +313,9 @@ check('N-9 / R9 A -> B -> A: same photo shown again, still one download of A\'s 
 r = await runN9({delayMs: 6000}, 'slow', 12000);
 check('N-9 image arriving after ~6 s (inside the limit): shown with credit, one download, credit never first', r.final.img && !r.final.img.hidden && r.imgs.length === 1 && r.log.every((x) => !x.credit || x.shown), {n: r.imgs.length, text: r.final.text.slice(0, 60)});
 r = await runN9({delayMs: 13000}, 'too slow', 17000);
-check('N-9 image arriving after ~13 s (past the limit): "Photo not available", no image, no second download, no credit ever', !r.final.img && r.final.text === 'Photo not available · View on Google Maps' && r.imgs.length === 1 && !r.log.some((x) => x.credit), {n: r.imgs.length, text: r.final.text});
+check('N-9 image arriving after ~13 s (past the limit): "Photo not available", no image, no second download, no credit ever', !r.final.img && r.final.text === 'Photo not available · View on Google Maps · Website not listed · Search the web' && r.imgs.length === 1 && !r.log.some((x) => x.credit), {n: r.imgs.length, text: r.final.text});
 r = await runN9('fail', 'fail', 6000);
-check('N-9 image fails: "Photo not available", no broken image', !r.final.img && r.final.text === 'Photo not available · View on Google Maps' && !r.log.some((x) => x.broken), r.final.text);
+check('N-9 image fails: "Photo not available", no broken image', !r.final.img && r.final.text === 'Photo not available · View on Google Maps · Website not listed · Search the web' && !r.log.some((x) => x.broken), r.final.text);
 imageMode = 'live';
 
 check('No console errors or warnings from page code during the whole check', allErrs.length === 0, allErrs);

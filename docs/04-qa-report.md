@@ -2,8 +2,109 @@
 
 This file holds one section per iteration, newest first. Earlier iterations are kept as written.
 
-- Iteration 2 (2026-11-15): link to each clinic's website (increment 2 on top, then increment 1)
+- Iteration 2 (2026-11-15): link to each clinic's website (increments 3 to 5 on top, then increment 2, then increment 1)
 - Iteration 1 (2026-11-14, live): clinic photo when a clinic is chosen
+
+---
+
+# Iteration 2 — Clinic website, increments 3 to 5 (centre line, card, table links) and fixes QA-W3 to QA-W5
+
+- **Date:** 2026-11-15
+- **Increment:** fix round 1 of increment 2 (QA-W5, QA-W4, QA-W3, extended generic words) plus increments 3, 4 and 5 of solution design §2.7 (iteration 2): website part of the link line at the Competition centre, note sentence, "Your clinic" card, small "Website" links in both clinic tables.
+- **Tester:** independent QA agent (did not write the code)
+- **Build tested:** branch `team/clinic-website`, commit `da33d2a`
+- **Environment:** macOS, Node 24.22.1, Python 3.14.0 (`.venv`), headless Chrome 157 (fresh profile), `python3 -m http.server 8123 --directory site`; the increment 2 build (`2bafc2d`) served on 8131 for comparison; a local probe page on `127.0.0.1:8124` to see what an opened clinic tab receives
+- **Verdict: APPROVED** (0 defects; QA-W3, QA-W4, QA-W5 fixed; 3 notes for the team, none blocking)
+
+## 1. Automated tests
+
+| Suite | Result |
+|---|---|
+| `node --test` (developer: `tests/photo.test.mjs`, `tests/web.test.mjs`) | 61 / 61 pass |
+| `.venv/bin/python -m unittest discover -s tests -p 'test_*.py'` (developer) | 20 / 20 pass |
+| `tests/qa/qa_web_inc1_adversarial.py`, `qa_web_inc1_refresh.py` (QA, increment 1) | 0 problems, 0 failures |
+| `node tests/qa/qa-web-inc2.mjs` (QA, increment 2: rules, parity with the refresh, privacy, real data) | 92 / 92 pass (was 87 / 92: QA-W3, QA-W4, QA-W5 now pass) |
+| `node tests/qa/qa-web-inc345-browser.mjs` (QA, **new**: this increment in the page, with fake listings injected in the browser only) | 43 / 43 pass |
+| Developer browser checks: `photo-inc3`, `photo-inc5`, `photo-inc6`, `web-inc345` | 21/21, 34/34, 20/20, 37/37 |
+| QA browser checks, updated for the new text (see §5): `qa-photo-inc1`, `qa-photo-inc3`, `qa-photo-inc5`, `qa-web-inc1-browser`, `qa-web-inc2-browser` | 36/36, 36/36, 56/56, 14/14 (one check per page state reworded), 54/54 |
+| Other QA checks, unchanged: `qa-photo-inc2`, `qa-photo-inc2-browser`, `qa-photo-inc6`, `qa-photo-inc6-coverage` | 58/58, 7/7, 27/27, runs (measurement only) |
+
+## 2. Re-test of the increment 2 defects
+
+| Item | What was checked | Result | Evidence |
+|---|---|---|---|
+| QA-W5 (Medium) | Rule: saved clinic A with a site, neighbour B within 30 m, B as centre -> B's own site or nothing; 4,000 random neighbours; property "Thu's site never under another name" | PASS | `qa-web-inc2.mjs` section 6 (was 3 FAIL) |
+| QA-W5 in the page | Fake saved clinic on a fake listing with `m.facebook.com`: neighbour 60 m with its own site shows "Website: voisin60fictive.ca"; neighbour 60 m without site shows nothing; real pairs: saved on "Clinique dentaire Métro Papineau", centre "1935 Clinique Dentaire" (66 m, no site) shows nothing; saved on "Le Loft Dentaire", centre "Clinique Dentaire Samuel Holland" (79 m) shows only "Website: cliniquesamuelholland.com" | PASS | `qa-web-inc345-browser.mjs` section 8, 9 |
+| Card rule only for her clinic | "Use your clinic" centre and the card show her listing's site; a listing 20 m away picked as centre becomes her clinic in the page (iteration 1 rule, 30 m): title "Competition around [her name]" and her site, so name and site always match | PASS | same, section 8 (see note N-W6) |
+| QA-W4 (Low) | `searchUrl` / `linkFor` with lone surrogates in name, address, town: no throw, halves dropped; in the page a fake "QA Fake Clinic \ud800 Surrogate" centre draws "Website not listed · Search the web" with `q=QA Fake Clinic Surrogate Chibougamau`, no `URIError` | PASS | `qa-web-inc2.mjs` sections 2, 3; `qa-web-inc345-browser.mjs` section 3 |
+| QA-W3 (Low) | 28,361 values through `clean_website` and `safeUrl`: 1 disagreement left, `https://fictive.ca/a;b` (the refresh splits on ";" first, so it can never be stored): accepted. Numeric hosts, U+0085, U+FEFF now agree | PASS | `qa-web-inc2.mjs` parity: `{"numericHost":0,"c1orBom":0,"semicolonOrSpace":1,"other":0}` |
+| Plain IPv4 kept as valid (developer's choice) | Both places: `192.0.2.1`, `1.2.3.4.` kept; `256.1.1.1`, `01.2.3.4`, `1.2.3`, `127.1`, `0x7f.0.0.1`, `1.2.3.0x10`, `fictive.123`, `fictive.0x1` refused; site name shows the address itself ("Website: 127.0.0.1") | PASS (judged acceptable) | Spec WR1 rule 4 allows it (digits and dots, at least one dot); the label shows exactly where the link goes (AC-13.4); 0 such values in the data. See note N-W5 |
+| Extended generic words | "Cliniques dentaires" with address -> search "Cliniques dentaires 1 Rue Fictive Chibougamau"; "Family Dental Care" without address -> "Website not listed" only; developer tests cover the full list | PASS | `qa-web-inc345-browser.mjs` section 3; real data now 1,692 site / 3,543 search / 493 "Website not listed" |
+
+## 3. Acceptance criteria, increments 3 to 5
+
+| Criterion | What was checked | Result | Evidence |
+|---|---|---|---|
+| AC-9.1 | `?hub=45.40933,-71.85909#competition`: line is exactly "Photo not available · View on Google Maps · Website: cliniquedentairesherbrooke.ca"; one website link | PASS | section 1 |
+| AC-9.2, AC-13.3 | Every website and search link: `target=_blank`, `rel="noopener noreferrer"`, `referrerpolicy="no-referrer"`. Real click (mouse event) on a table link to the probe page: new tab opened, `window.opener === null`, `document.referrer === ""`; dashboard address, order and service choices unchanged | PASS | sections 1, 6 |
+| AC-9.3 | Switching centres; neighbours of her clinic (QA-W5); developer fast-switch check | PASS | sections 8, 9; `web-inc345` |
+| AC-9.4 | No centre: block hidden, no "Website not listed" or "Search the web" in the Competition tab | PASS | section 12 |
+| AC-9.5 | Panoramax held for 4 s: the line already reads "Loading photo... · View on Google Maps · Website: cliniquedentairesherbrooke.ca"; photo states, credit and Google Maps link unchanged (all photo checks pass with only the website part added) | PASS | section 7; photo regression |
+| AC-10.1, AC-10.2, AC-10.4 | `?hub=45.51432,-73.56878#competition`: "... · View on Google Maps · Website not listed · Search the web"; link `https://www.google.com/search?q=Dr%20Lac%20Long%20Ly%20Montr%C3%A9al`, only the `q` parameter, nothing from the page address | PASS | section 1 |
+| AC-10.3 | Generic with address: name + address + town; generic without address: "Website not listed", no link | PASS | section 3; `web-inc345` |
+| AC-11.1, AC-11.2, AC-11.4 | Card shows her listing's site ("Website: m.facebook.com"); no listing within 30 m: nothing; "Change" follows the new location; "Remove" hides it | PASS | section 8, 11; `web-inc345` |
+| AC-11.3 / W11 | "Use your clinic": her site, no search. 6 real centres within 100 m of three saved spots in Montréal: 0 search links, 0 "Website not listed". 60 m from a location saved earlier in the same visit: still nothing | PASS | sections 8, 10, 11 |
+| AC-12.1, AC-12.3, AC-12.4 | "Competing clinics" with 11 fake rows: "Website" link exactly on the 5 rows with a valid address (incl. the 461-char one), with `aria-label` "Website of [name]" and class `dm-tlink`; none for `javascript:`, a user-part address, or no website; no search link or "Website not listed" text in any row | PASS | section 5 |
+| AC-12.2, AC-12.6 | "Nearest dental listings" in the card: same rule; her own listing and the 60 m neighbour without site get no link and no search | PASS | section 8 |
+| AC-12.5 | Clicking a table link keeps the address, row order and service choices | PASS | section 6; `web-inc345` |
+| AC-13.1, AC-13.4, AC-13.5 | `javascript:alert(1)` -> search fallback, no `javascript:` in the block; `https://fictive.ca@evil.example` refused, `evil.example` never shown; `https://m.facebook.com/...` -> "Website: m.facebook.com" | PASS | section 3 |
+| AC-14.1 | Note ends "... the same size for every clinic. Website links come from the OpenStreetMap listing and may be missing or out of date. Map data © OpenStreetMap contributors." | PASS | section 2 |
+| AC-14.4 | Light and dark at 375 px with a 200-character host: only the host is shown, the line wraps, page and block have no horizontal scroll; table link contrast 19.2 (light) and 15.2 (dark); developer check covers centre links | PASS | section 4 |
+| AC-14.5 | All photo, Google Maps, filters, notes and earlier QA checks pass; no console errors or warnings in any run | PASS | §1 |
+| AC-14.6, WR7 | Hosts contacted by the page itself during the whole run: only `api.panoramax.xyz` (existing photo lookup); the probe host only after the click; no prefetch, preconnect or speculation rules. Versus `2bafc2d`: identical hosts in 6 page states | PASS | sections 13; `qa-web-inc2-browser` |
+| Text only, no HTML | Fake listing named `<img src=x onerror="...">QA Fake XSS Clinic` with website `https://fictive-xss.ca/"><img/src=x/onerror=...>`: no element created, no script run, link text "Website: fictive-xss.ca"; code: `extLink` and `nameCell` use `textContent` / `append` only | PASS | section 3; code read |
+| AC-14.2, AC-14.3 | Unchanged since increment 1 (refresh) | PASS | `qa_web_inc1_refresh.py` |
+| US-15 | Not built (W13, decided) | Not in scope | |
+
+## 4. Other checks
+
+- **Labels:** all new texts match the spec exactly ("Website: [site name]", "Website not listed", "Search the web", "Website", aria "Search the web for [name]" and "Website of [name]", the note sentence). The page is in English by decision (requirements §2.7); accents are kept in search text ("Montréal", "Rémillard") and in names in tables.
+- **Security:** only `http:`/`https:` become links, checked twice (refresh and page); site name taken from the address the link opens; all new links open in a new tab without opener or referrer (tested with a real click); no `innerHTML`; `web.js` still makes no requests.
+- **Patient data (Loi 25):** none. New QA script uses fictive names and sites only ("QA Fake ... Clinic", `voisin60fictive.ca`, `fictive-xss.ca`), placed in the forest north of Chibougamau, injected in the browser only; real names are public OpenStreetMap business listings. The commit `da33d2a` contains no personal data, keys or secrets; `site/content/local.json` stays git-ignored and was never committed.
+- **Docs:** CHANGELOG, README (both example addresses verified) and the spec's "As-built clarifications" match the behaviour.
+
+## 5. QA scripts updated (they failed on purpose because of the new text)
+
+- `qa-photo-inc1.mjs`: the generic "Dentist" centre now ends with " · Website not listed".
+- `qa-photo-inc3.mjs`, `qa-photo-inc5.mjs` (N-9): centre "Centre Dentaire Gagné Rémillard" now ends with " · Website not listed · Search the web"; the checks next to her clinic stay exact (nothing appended there).
+- `qa-web-inc1-browser.mjs`: instead of "no website on the page yet": no website on the default page; at the Rosemont centre "View on Google Maps · Website: cliniquedentairerosemont.com", and every link to a listing host is a stored address.
+- `qa-web-inc2-browser.mjs`: now compares with the increment 2 build (`2bafc2d`); the page text and links must be identical once the new website parts are removed; the hosts contacted must be identical.
+- No assertion was weakened on photo states, privacy line or Google Maps link.
+
+## 6. Defects
+
+None open. QA-W3, QA-W4 and QA-W5 are fixed (verified above); QA-W1 and QA-W2 were fixed in increment 2.
+
+## 7. Notes (not defects)
+
+- **N-W5 (IPv4):** a plain IPv4 address such as `http://192.168.0.1` or `http://127.0.0.1` would be accepted as a clinic website if an OpenStreetMap listing ever had one. The link shows "Website: 192.168.0.1", so Thu sees it is not a clinic site, and it only opens on her click. 0 in the data today. If the team wants, the refresh could later also refuse private and loopback addresses; not needed for acceptance.
+- **N-W6 (30 m):** with her clinic saved, a different listing within 30 m of it can never become the centre: the page treats that spot as her clinic (iteration 1 rule) and shows her name and her website. Consistent, never mixed; just worth knowing for shared buildings.
+- **N-W7 (test setup):** a Chrome profile reused from an earlier QA run served an old `index.html` from its cache (without `web.js`), and the page then threw `dmWeb is not defined` and hid the photo block. The live site is not affected (the deploy adds `?v=` versions to every asset in `index.html`, so a cached page always loads matching scripts). Browser checks must run with a fresh profile or cache disabled; `qa-web-inc345-browser.mjs` disables the cache.
+- **Coverage (information for Thu):** over all 5,728 listings with no saved clinic: 1,692 "Website" (about 30 %), 3,543 "Search the web", 493 "Website not listed" (generic name without address).
+
+## 8. How to re-run
+
+```bash
+node --test
+.venv/bin/python -m unittest discover -s tests -p 'test_*.py'
+node tests/qa/qa-web-inc2.mjs
+python3 -m http.server 8123 --directory site &
+git archive 2bafc2d site | tar -x -C /some/dir && python3 -m http.server 8131 --directory /some/dir/site &
+mkdir -p /some/probe && python3 -m http.server 8124 --bind 127.0.0.1 --directory /some/probe &
+# Chrome --headless=new --remote-debugging-port=9333 --user-data-dir=<new empty folder>
+PROBE_DIR=/some/probe node tests/qa/qa-web-inc345-browser.mjs
+node tests/browser/web-inc345.mjs; node tests/qa/qa-web-inc2-browser.mjs   # and the other tests/browser and tests/qa scripts
+```
 
 ---
 

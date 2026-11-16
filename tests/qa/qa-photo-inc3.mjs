@@ -1,4 +1,5 @@
 // QA browser check, clinic photo increment 3: live Panoramax lookups in the real page. Independent of the developer's checks.
+// Updated for iteration 2, increment 3: centre A has no website, so the line ends with " · Website not listed · Search the web".
 // Needs: python3 -m http.server 8123 --directory site, and Chrome started with --headless=new --remote-debugging-port=9333.
 // Run: node tests/qa/qa-photo-inc3.mjs   (uses the live network; Panoramax answers are held or failed on purpose in some checks)
 // Fake clinic names only ("QA Fake Clinic"); coordinates are public OpenStreetMap listings, or made-up points near them.
@@ -59,13 +60,13 @@ const EXPECTED_ID = '21ad9cc0-8ce2-401d-9bbb-79acd61ffc2c'; // R2 worked out by 
 await go(`${BASE}#competition`); await evalJs('localStorage.clear()');
 await go(`${BASE}?hub=${A.hub}#competition`);
 const s0 = await until((v) => v.text.startsWith('Loading') || !!v.img, 8000);
-check('AC-1.5 "Loading photo..." with the Google Maps link first', s0.text === 'Loading photo... · View on Google Maps', s0.text);
+check('AC-1.5 "Loading photo..." with the Google Maps link first', s0.text === 'Loading photo... · View on Google Maps · Website not listed · Search the web', s0.text);
 const s1 = await until((v) => v.img && !v.img.hidden);
 check('AC-1.1 photo shown under the title, fully loaded', s1.img && s1.img.w > 0 && !s1.img.hidden, s1.img);
 check('R2 the picked photo matches QA hand calculation', s1.img && s1.img.src.includes(EXPECTED_ID.split('-').slice(1).join('-')), s1.img && s1.img.src);
 check('AC-7.3 alt "Street view of [clinic name]" with accents', s1.img && s1.img.alt === `Street view of ${A.name}`, s1.img && s1.img.alt);
 check('AC-6.1/6.2/6.3 credit line: contributor, Panoramax, licence, Québec month, sign note, link',
-  s1.text === `Photo: Ombrefeu via Panoramax, CC-BY-SA-4.0 · Photo taken November 2026 · ${NOTE} · View on Google Maps`, s1.text);
+  s1.text === `Photo: Ombrefeu via Panoramax, CC-BY-SA-4.0 · Photo taken November 2026 · ${NOTE} · View on Google Maps · Website not listed · Search the web`, s1.text);
 const pxl = s1.links.find((l) => l.t === 'Panoramax'), gm = s1.links.find((l) => l.t === 'View on Google Maps');
 check('R5 "Panoramax" links to the photo page in a new tab, noreferrer', pxl && pxl.href === `https://api.panoramax.xyz/#focus=pic&pic=${EXPECTED_ID}` && pxl.target === '_blank' && /noopener/.test(pxl.rel) && /noreferrer/.test(pxl.rel), pxl);
 check('AC-4.1/R6 Google Maps link still there, coordinates only', gm && gm.href === 'https://www.google.com/maps/search/?api=1&query=45.39869,-71.93327' && gm.target === '_blank', gm);
@@ -147,7 +148,7 @@ for (const [m, label] of [['failSearch', 'source down'], ['failImage', 'image fa
   await setHub(A.hub);
   const r = await until((v) => v.text.startsWith('Photo not available') || (v.img && !v.img.hidden), 12000);
   const lg = await evalJs('window.__log');
-  check(`AC-3.1/3.3 ${label}: "Photo not available" + link, no image element, never a broken icon`, r.text === 'Photo not available · View on Google Maps' && !r.img && !lg.some((x) => x.broken || x.shown), r.text);
+  check(`AC-3.1/3.3 ${label}: "Photo not available" + link, no image element, never a broken icon`, r.text === 'Photo not available · View on Google Maps · Website not listed · Search the web' && !r.img && !lg.some((x) => x.broken || x.shown), r.text);
   check(`AC-3.2 ${label}: no console error from page code`, pageErrors().length === 0, pageErrors());
   mode = 'live';
 }

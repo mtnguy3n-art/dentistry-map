@@ -2,6 +2,7 @@
 // Needs: python3 -m http.server 8123 --directory site, and Chrome started with --headless=new --remote-debugging-port=9333.
 // Run: node tests/qa/qa-photo-inc1.mjs
 // Updated for increment 3: Panoramax lookups are allowed for clinics other than the saved one; other outside hosts are not.
+// Updated for iteration 2, increment 3: the line now ends with the website part (US-9, US-10).
 // Fake clinic names only. Coordinates are public OpenStreetMap listings already in site/data/dentists.json.
 const BASE = 'http://localhost:8123/';
 const CDP = 'http://localhost:9333';
@@ -47,7 +48,7 @@ await load(`${BASE}?hub=${HUB}#competition`);
 const title0 = await evalJs(`document.querySelector('[data-draw="hub-name"]').textContent`);
 b = await evalJs(block('hub-photo'));
 check('AC-1.1 placement: block directly under "Competition around ..." title', b.visible && b.prev.startsWith('H2:Competition around'), {title: title0, prev: b.prev});
-check('AC-3.1 text exactly "Photo not available" then link', b.text === 'Photo not available · View on Google Maps', b.text);
+check('AC-3.1 text exactly "Photo not available" then link (+ iteration 2: " · Website not listed" for this generic listing)', b.text === 'Photo not available · View on Google Maps · Website not listed', b.text);
 check('R6 href coords only, 5 decimals', b.href === 'https://www.google.com/maps/search/?api=1&query=46.75949,-70.95007', b.href);
 check('AC-4.2 target _blank, rel noopener noreferrer', b.target === '_blank' && /noopener/.test(b.rel) && /noreferrer/.test(b.rel), {t: b.target, rel: b.rel});
 check('D2 no privacy line for a non-own clinic', !b.text.includes('private') && b.ps === 1, b.ps);
