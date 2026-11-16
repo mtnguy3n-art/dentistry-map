@@ -127,8 +127,17 @@ check('AC-3.3 no broken image at any moment during switching', !log.some((r) => 
 // ---------- 4. Map click: photo follows the new centre ----------
 await go(`${BASE}?hub=45.52429,-73.55307#competition`); await until((v) => !v.text.startsWith('Loading'), 12000);
 const clicked = await evalJs(`(() => { const c = [...document.querySelectorAll('#competition svg circle')].find((x) => x.style.cursor === 'pointer'); if (!c) return false; c.dispatchEvent(new MouseEvent('click', {bubbles: true})); return true; })()`);
-const mc = await until((v) => !v.text.startsWith('Loading'), 12000);
-const hp = await evalJs(`new URLSearchParams(location.search).get('hub')`);
+// QA increment 6 (iteration 2): wait until the block has been redrawn for the new centre, not just "not loading";
+// right after the click the block can still show the old centre's finished state for a moment (seen once: 35/36)
+let hp = '45.52429,-73.55307', mc;
+{ const t0 = Date.now();
+  while (Date.now() - t0 < 12000) {
+    hp = await evalJs(`new URLSearchParams(location.search).get('hub')`) || '';
+    mc = await evalJs(block);
+    const want = hp.split(',').map((x) => Number(x).toFixed(5)).join(',');
+    if (hp !== '45.52429,-73.55307' && !mc.text.startsWith('Loading') && mc.links.some((l) => l.t === 'View on Google Maps' && l.href.endsWith(want))) break;
+    await wait(100);
+  } }
 check('AC-1.4 after a map click the block follows the new centre', clicked && hp !== '45.52429,-73.55307' && mc.links.some((l) => l.t === 'View on Google Maps' && l.href.endsWith(hp.split(',').map((x) => Number(x).toFixed(5)).join(','))), {hp, text: mc.text});
 
 // ---------- 5. Time limit and failures ----------

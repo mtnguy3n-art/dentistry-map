@@ -2,8 +2,81 @@
 
 This file holds one section per iteration, newest first. Earlier iterations are kept as written.
 
-- Iteration 2 (2026-11-15): link to each clinic's website (increments 3 to 5 on top, then increment 2, then increment 1)
+- Iteration 2 (2026-11-15): link to each clinic's website (increment 6 and overall verdict on top, then increments 3 to 5, increment 2, increment 1)
 - Iteration 1 (2026-11-14, live): clinic photo when a clinic is chosen
+
+---
+
+# Iteration 2 — Clinic website, increment 6 (final checks, coverage, README; N-W5) and overall verdict
+
+- **Date:** 2026-11-15
+- **Increment:** 6 of solution design §2.7 (iteration 2): README "Data and licences" and refresh text, CHANGELOG with the 20-sample website coverage, N-W5 (private / loopback / link-local IPv4 refused), final regression. Medium request: one focused pass on what changed since `da33d2a` (approved), plus a full regression run.
+- **Tester:** independent QA agent (did not write the code)
+- **Build tested:** branch `team/clinic-website`, commit `ba2344c`
+- **Environment:** macOS, Node 24.22.1, Python 3.14.0 (`.venv`), headless Chrome 157 with a new empty profile, `--disk-cache-size=1` and `--host-resolver-rules="MAP probe.fictive.test 127.0.0.1"`; `python3 -m http.server 8123 --directory site`; the increment 2 build (`2bafc2d`) on 8131 for `qa-web-inc2-browser`; probe page on 8124
+- **Verdict (increment 6): APPROVED** — 0 defects
+- **Verdict (whole iteration 2, increments 1 to 6): APPROVED** — see §6
+
+## 1. Automated tests (full regression, one pass)
+
+| Suite | Result |
+|---|---|
+| `node --test` (developer) | 62 / 62 pass |
+| `.venv/bin/python -m unittest discover -s tests -p 'test_*.py'` (developer) | 21 / 21 pass |
+| `node tests/coverage/website-sample.mjs` (developer, offline) | Website 3 · Search the web 15 · Website not listed only 2 (matches CHANGELOG) |
+| `node tests/qa/qa-web-inc6.mjs` (QA, **new**: N-W5 both sides, parity, real data, independent 20-sample recount) | 129 / 129 pass |
+| `node tests/qa/qa-web-inc2.mjs` | 92 / 92 pass |
+| `tests/qa/qa_web_inc1_adversarial.py`, `qa_web_inc1_refresh.py` | 0 problems, 0 failures |
+| `node tests/qa/qa-photo-inc2.mjs` | 58 / 58 pass |
+| Developer browser checks `photo-inc3`, `photo-inc5`, `photo-inc6`, `web-inc345` | 21/21, 34/34, 20/20, 37/37 |
+| QA browser checks `qa-photo-inc1`, `qa-photo-inc2-browser`, `qa-photo-inc3`, `qa-photo-inc5`, `qa-photo-inc6` | 36/36, 7/7, 36/36, 56/56, 27/27 |
+| QA browser checks `qa-web-inc1-browser`, `qa-web-inc2-browser`, `qa-web-inc345-browser` | 14/14, 54/54, 43/43 |
+| `qa-photo-inc6-coverage` (live Panoramax, measurement only) | ran, exit 0 |
+| `qa-photo-inc3` after the wait fix (§5), 3 more runs | 36/36 each time |
+
+(`qa-web-inc2-browser` first stopped with a `localStorage` SecurityError because I had not started the 8131 comparison server; with it running, 54/54. Setup error on my side, not a finding.)
+
+## 2. Checks in scope
+
+| Item | Result | Evidence |
+|---|---|---|
+| CHANGELOG 20-sample numbers 3 / 15 / 2 | PASS | `website-sample.mjs` prints 3 / 15 / 2; my own recount in `qa-web-inc6.mjs` (straight from `web`, `name`, `address` in `dentists.json`, without `linkFor`) gives the same 3 / 15 / 2, 0 missing. Websites: Pellan & Lessard, Rosemont, Paro Chirurgie; "not listed": the two unnamed "Dentist" listings (Montréal, Magog). Group split in the CHANGELOG matches the per-row output |
+| README "Data and licences": websites from OpenStreetMap, may be missing or out of date, how refreshed | PASS | Line names the tags, © OpenStreetMap contributors, yearly refresh or `pipeline/refresh.py --dentists` (only `dentists.json`, keeps the current file when the download looks incomplete), fix on openstreetmap.org, page never opens a site by itself. Matches behaviour verified by `qa_web_inc1_refresh.py` (0 failures) |
+| README refresh paragraph lists the IPv4 rule; new coverage script documented | PASS | Both present and accurate |
+| N-W5: 0/8, 10/8, 127/8, 169.254/16, 172.16/12, 192.168/16 refused in `safeUrl` and `weblink.py` | PASS | Range edges (first and last address of each range, trailing dot, with a port) refused by both |
+| N-W5: public IPv4 still kept (edges just outside each range, 192.0.2.1, 198.51.100.7, 203.0.113.9, 8.8.8.8) | PASS | Kept by both, same value returned |
+| N-W5: names such as `10.fictive.ca`, `127.fictive.ca`, `192.168.fictive.ca` still kept | PASS | Kept by both; `siteName` gives `10.fictive.ca` |
+| N-W5 bypass forms: `127.1`, `0x7f.0.0.1`, `0177.0.0.1`, `2130706433`, `[::1]`, `[::ffff:127.0.0.1]`, `localhost`, full-width digits, `%31%32%37.0.0.1`, `010.0.0.1` | PASS | All refused by both; no kept value parses (`new URL`) to a private, loopback or IPv6 host |
+| N-W5: `linkFor` never offers "Website" for a private address | PASS | Falls back to the no-website rule |
+| All 1,692 real values unchanged | PASS | `safeUrl` and `weblink.py` both return every stored value unchanged; none is an IPv4 address, so not rebuilding `dentists.json` is correct |
+| `qa-web-inc345-browser` probe moved to `probe.fictive.test` | PASS (fair change) | It tests the same thing (the opened tab has `opener` null and empty `referrer`): the run shows `{"opener":"null","referrer":""}` from `http://probe.fictive.test:8124/probe.html`, and the probe server log shows the real request. `.test` is a reserved name that never resolves on the internet, so nothing leaks. Without the Chrome flag the tab cannot load the probe and the check fails, it cannot pass silently. Expected text now taken from `PROBE`, and the outside-requests check is unchanged. I updated the "How to re-run" of increments 3 to 5 |
+
+## 3. Other checks
+
+- Labels: no new page text in this increment; existing labels ("Website: …", "Website not listed · Search the web", note sentence) unchanged in all browser checks; accents (Montréal, Québec) correct in README, CHANGELOG and the coverage output.
+- Security: no new risk; the IPv4 change only narrows what is accepted. Both lists are identical (read side by side).
+- No real patient data: the commit adds fictive hosts only (`fictive.ca`, `example.*`, documentation/private IPv4, `probe.fictive.test`); the coverage table lists public OpenStreetMap business listings only. `tests/qa/qa-web-inc6.mjs` uses the same.
+
+## 4. Defects
+
+None.
+
+## 5. QA script change: `qa-photo-inc3` map-click wait (test timing, not an app defect)
+
+The developer saw 35/36 once on "AC-1.4 after a map click the block follows the new centre". Cause in my script: after the click it waited only for "not Loading", which is already true for the old centre's finished block, so it could read the line before the redraw. It now waits (up to 12 s) until the URL `hub` has changed and the block's "View on Google Maps" link points to that new centre, then checks as before. The check is not weaker: it still fails if the block never follows the click. 4 runs after the change: 36/36 each time.
+
+## 6. Overall verdict for the whole iteration 2 (clinic website links, US-9 to US-15)
+
+**APPROVED.** Across increments 1 to 6 QA raised QA-W1 to QA-W5 (one Medium, four Low); all are fixed and re-tested. Note N-W5 is now done as well. Notes N-W1, N-W2, N-W6 and N-W7 stay as information, none blocks release. The full regression (developer and QA, Node, Python, browser with a fresh profile and cache off) passes, and the iteration 1 photo feature is unaffected.
+
+## 7. How to re-run (this increment)
+
+```bash
+node --test && .venv/bin/python -m unittest discover -s tests -p 'test_*.py'
+node tests/coverage/website-sample.mjs
+node tests/qa/qa-web-inc6.mjs
+# browser checks: see "How to re-run" of increments 3 to 5 below (Chrome now needs --host-resolver-rules)
+```
 
 ---
 
@@ -101,7 +174,10 @@ node tests/qa/qa-web-inc2.mjs
 python3 -m http.server 8123 --directory site &
 git archive 2bafc2d site | tar -x -C /some/dir && python3 -m http.server 8131 --directory /some/dir/site &
 mkdir -p /some/probe && python3 -m http.server 8124 --bind 127.0.0.1 --directory /some/probe &
-# Chrome --headless=new --remote-debugging-port=9333 --user-data-dir=<new empty folder>
+# Chrome --headless=new --remote-debugging-port=9333 --user-data-dir=<new empty folder> \
+#   --host-resolver-rules="MAP probe.fictive.test 127.0.0.1"
+# (updated in increment 6: since N-W5 the page refuses 127.0.0.1, so the probe is http://probe.fictive.test:8124/probe.html,
+#  a fictive name Chrome maps to the local probe server; without the flag the opened-tab check fails, it cannot pass silently)
 PROBE_DIR=/some/probe node tests/qa/qa-web-inc345-browser.mjs
 node tests/browser/web-inc345.mjs; node tests/qa/qa-web-inc2-browser.mjs   # and the other tests/browser and tests/qa scripts
 ```
