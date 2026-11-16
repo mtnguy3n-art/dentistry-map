@@ -1,4 +1,191 @@
-# 02 — Functional spec: clinic photo when a clinic is chosen
+# 02 — Functional spec
+
+This file holds one section per iteration, newest first. Earlier iterations are kept as written.
+
+- Iteration 2 (2026-11-15): link to each clinic's website (US-9 to US-15)
+- Iteration 1 (2026-11-14, live): clinic photo when a clinic is chosen (US-1 to US-8)
+
+---
+
+# Iteration 2 — Link to each clinic's website
+
+Input: `docs/01-requirements.md`, section "Iteration 2" (US-9 to US-15, decisions W1 to W8). Status: draft for Gate 2.
+Screen texts stay in English, like the rest of the page (requirements §2.7). Exact texts are in quotes.
+
+## 2.0 Decisions taken for Thu (she asked the team to decide; she judges the result)
+
+| # | Decision | Why | Stories |
+|---|---|---|---|
+| W9 | The website or fallback is added **on the same line as "View on Google Maps"**, after it, inside the existing photo block. Nothing else in the photo block changes (photo, "Loading photo...", "Photo not available", credit, privacy line). | Requirement W2 / AC-9.1; one place to look; photo area stays as it is (W1). | US-9, US-10, US-11 |
+| W10 | **Which listing is "Thu's clinic"** for its website: the closest OpenStreetMap listing within 30 m of her saved clinic (the existing "your clinic" match). If that listing has no website, no website line. | Same match the page already uses; no new rule to learn. | US-11 |
+| W11 | **No search link near Thu's clinic**: no "Search the web" link for any centre within 100 m of her saved clinic, or within 100 m of any clinic location she saved earlier in the same visit (the iteration 1 privacy guard R1 and fix N-8, reused as is). Such a centre shows its own listing website if it has one, otherwise no website line at all. | Keeps "your clinic stays in your browser" (W6, AC-11.3). | US-10, US-11 |
+| W12 | **Generic names** ("Dentist", "Dental Office", "Clinique dentaire", "Centre dentaire" and similar, rule WR4) are searched with the street address and town added; with no address, no search link. | A search for "Dental Office Calgary" would not find the clinic; the address makes it findable. Extends AC-10.3 from "Dentist" to all name-less listings. | US-10 |
+| W13 | **US-15 (Could, type my own website) is not built** in this iteration. | Thu knows her own website; the card already links to her listing's site when known. Keeps the change small. Can be added later in about an hour if she asks. | US-15 |
+| W14 | Website addresses are **cleaned once, in the data refresh**, and checked again for safety in the page. A new refresh option rebuilds only the clinic listings, so the websites arrive now instead of at the next yearly refresh. | Clean data, correct counts in the refresh report, and no wait until February. | US-13, US-14 |
+
+## 2.1 Screens and flows
+
+### 2.1.1 The website part of the link line (shared by both places)
+
+The photo block already ends with a small line that contains "View on Google Maps". The website part is appended to that line, separated by " · ". It has one of four states:
+
+| State | What is appended after "View on Google Maps" | When |
+|---|---|---|
+| Website | " · Website: [site name]" where "Website: [site name]" is one link | The listing has a usable website (rule WR1). |
+| Search | " · Website not listed · Search the web" where only "Search the web" is a link | No usable website, the centre is not near Thu's clinic (W11), and a search can be built (WR4). Competition tab only. |
+| Not listed, no search | " · Website not listed" (no link) | No usable website, not near Thu's clinic, but the listing has a generic name and no address (AC-10.3). Competition tab only. |
+| None | Nothing appended | No clinic chosen (the whole block is hidden, AC-9.4); or the centre / card is Thu's clinic or near it and no website is known (AC-11.2, W11). |
+
+Examples of a full line:
+- "Photo not available · View on Google Maps · Website: cliniquexyz.ca"
+- "Loading photo... · View on Google Maps · Website not listed · Search the web"
+- "Photo: jdupont via Panoramax, CC-BY-SA-4.0 · Photo taken June 2023 · The photo shows the location, not necessarily the clinic's current sign. · View on Google Maps · Website: facebook.com"
+- Thu's card: "Your photo · View on Google Maps · Website: macliniquefictive.ca" or just "Photo not available · View on Google Maps" (plus the existing privacy line underneath).
+
+Rules for all states:
+- The website part is decided at once from the page data, with no outside call, so it never waits for the photo (AC-9.5). It is the same in every photo state (Loading, Free photo, Own photo, Not available).
+- Links open in a new tab; the opened site cannot control the dashboard and is not told the dashboard's address (AC-9.2, AC-10.2, AC-13.3). Same look as "View on Google Maps" (existing `.dm-photo a` style, light and dark).
+- Screen reader: the website link reads "Website: [site name]"; "Search the web" is announced as "Search the web for [clinic name]".
+- Long addresses never overflow: only the site name is shown (WR2), and the line wraps at 375 px (AC-14.4; the block already breaks long words).
+
+### 2.1.2 Competition tab, "Clinic at the centre" (US-9, US-10, AC-11.3)
+
+Location: the link line of the photo block under "Competition around [clinic name]".
+
+Flow:
+1. Thu picks a clinic (suggestions, a competitor on the map, "Use your clinic", or a shared link).
+2. If the centre is within 100 m of her saved clinic or of a clinic location saved earlier in this visit (W11): Website state if its listing has a website (for her own clinic: the W10 listing), otherwise None.
+3. Otherwise: Website state if the listing has a usable website; otherwise Search state, or "Not listed, no search" for a generic name without address.
+4. Picking another centre redraws the line for the new clinic at once. The previous clinic's website is never shown with the new name (AC-9.3).
+
+### 2.1.3 "Your clinic" card (US-11)
+
+Location: the link line of the card's photo block, under the clinic name.
+- Website state if the W10 listing has a usable website; otherwise None. Never "Website not listed", never "Search the web" (AC-11.2).
+- "Change" to a new location or "Remove" redraws the line from the new location, or hides it with the block (AC-11.4). While the form is open, the block is hidden, as today.
+
+### 2.1.4 "Competing clinics" table and "Nearest dental listings" table (US-12)
+
+- In the Name cell, after the clinic name (and after "(closed note)" when there is one), a small link "Website" when the row's listing has a usable website. Nothing when it has none (AC-12.3). No search link in tables.
+- Screen reader name: "Website of [clinic name]" (AC-12.4).
+- Opens in a new tab with the same safety as above. Clicking it does not change the centre, the sort order or the service choices (AC-12.5; the table click handler only reacts to column headers).
+- Rows near Thu's clinic follow the same rule automatically: a link only if known, never a search (AC-12.6).
+
+### 2.1.5 Note under the "Competing clinics" table (AC-14.1)
+
+The existing note gets one sentence, placed just before "Map data © OpenStreetMap contributors.":
+"Website links come from the OpenStreetMap listing and may be missing or out of date."
+The OpenStreetMap credit and the limits text stay as they are.
+
+## 2.2 Business rules
+
+**WR1 — Usable website (US-13), applied by the data refresh.**
+For each listing, look at the OpenStreetMap tags in this order: `website`, `contact:website`, `url`. Split each value on ";" and take the **first piece that passes** all of:
+1. Trim spaces. Empty: skip.
+2. Contains a space, or contains "@" before any "/" (an e-mail address): skip.
+3. Starts with "http://" or "https://" (any letter case): keep as is. Starts with any other scheme ("javascript:", "mailto:", "tel:", "ftp:", "//", ...): skip. No scheme at all: add "https://" in front.
+4. The result must have a host name of letters, digits, "-" and "." only, with at least one "." (so "cliniquexyz" alone is refused), no user name or password part, and be at most 500 characters.
+If no piece passes in any tag, the listing has no website.
+
+Examples:
+| Tag values | Result |
+|---|---|
+| website=`https://www.cliniquexyz.ca/fr/accueil` | `https://www.cliniquexyz.ca/fr/accueil` |
+| website=`www.cliniquexyz.ca` | `https://www.cliniquexyz.ca` |
+| website=`cliniquexyz.ca;https://facebook.com/xyz` | `https://cliniquexyz.ca` |
+| website=`mailto:info@xyz.ca`, contact:website=`xyz.ca` | `https://xyz.ca` |
+| website=`javascript:alert(1)` | none |
+| url=`info@xyz.ca` | none |
+| website=`Clinique XYZ` | none |
+| website=`https://good.ca@evil.com` | none (user part) |
+| website=`http://xyz.ca` | `http://xyz.ca` (kept, not upgraded, so the link still works) |
+
+**WR1b — Safety check in the page (defence in depth).** The page only turns a stored address into a link if it starts with "http://" or "https://", has a dotted host and no user name or password. Anything else is treated as no website. So a bad value in the data file can never become a dangerous link.
+
+**WR2 — Site name shown (AC-9.1, AC-13.4).** Taken from the very address the link opens: its host name, in lower case, without a leading "www." and without port, path or query.
+Examples: `https://www.CliniqueXYZ.ca/fr/accueil` → "cliniquexyz.ca"; `https://m.facebook.com/xyz` → "m.facebook.com"; `http://xyz.ca:8080/a` → "xyz.ca". A social media page is accepted and shown by its site name (AC-13.5).
+
+**WR3 — Duplicate listings.** The refresh already drops duplicate listings (same name, same spot to about 100 m). If the kept listing has no website but a dropped duplicate has one, the website is kept on the kept listing.
+
+**WR4 — Search text (US-10).**
+- A name is **generic** when, ignoring case, accents and punctuation, it is made only of these words: dentist, dentists, dentiste, dentistes, dental, dentaire, dentistry, denturist, denturologiste, office, clinic, clinique, centre, center, cabinet, care, soins, de, du, des, la, le, the. Examples: "Dentist", "Dental Office", "Clinique dentaire", "Centre Dentaire". Not generic: "Clinique Dentaire Couture", "Altima Dental".
+- Town: the page's existing town for the listing (the municipality name, or the market name if not found), the same one shown in the clinic suggestions.
+- Named listing: search text = name + " " + town. Example: "Clinique Dentaire Couture Rimouski".
+- Generic name with an address: name + " " + address + " " + town. Example: "Dentist 292 Freshwater Road St. John's".
+- Generic name without an address: no search link ("Not listed, no search" state).
+- Empty parts are left out; spaces are collapsed.
+
+**WR5 — Search link.** `https://www.google.com/search?q=<search text, URL-encoded>`. Contains nothing else: no page address, radius, filters or anything about Thu's clinic (AC-10.4). Free, no account.
+
+**WR6 — Thu's clinic and its surroundings (W6, W10, W11).**
+- Card: website of the closest listing within 30 m of the saved clinic, if it has one; else nothing.
+- Centre that is Thu's clinic: same as the card.
+- Centre within 100 m of the saved clinic or of a location saved earlier this visit, but not her clinic: that listing's own website if any; else nothing.
+- Example: saved clinic at P. Listing A 12 m from P with website `https://macliniquefictive.ca`: card and centre show "Website: macliniquefictive.ca". Competitor B 70 m away without website, chosen as centre: nothing appended (no search). Competitor C 400 m away without website: "Website not listed · Search the web".
+- Limit (same as iteration 1): before Thu saves her clinic, the page does not know which listing is hers; choosing her own listing as the centre then offers a search like any other listing. The search only opens if she clicks it, and only contains the public listing's name and town.
+
+**WR7 — Nothing happens without a click (W8, AC-14.6).** The page never loads, checks or prefetches a clinic website or a search page. The links are plain links.
+
+**WR8 — Meaning (AC-10.5).** "Website not listed" means only that the OpenStreetMap listing has no website; the note (2.1.5) says where links come from.
+
+**WR9 — Refresh report (AC-14.2).** Each refresh that rebuilds the listings reports the number of listings with a website, for Canada and for Québec (markets whose id starts with 24). These counts are for Thu and the team only, never shown on the page (CLAUDE.md: pins are never used for counts on the page).
+
+## 2.3 Data
+
+| Entity | Fields | Where it lives | Patient data? |
+|---|---|---|---|
+| Clinic listing (existing, extended) | name, address, lat, lon, city_id, market_id, **web (new, optional: cleaned website address, only present when known)** | `site/data/dentists.json`, built by `pipeline/` from OpenStreetMap | No. Public listing data (ODbL). |
+| Saved own clinic (existing, unchanged) | name, lat, lon | This browser's storage (`dm-clinic`) | No. Business-private to Thu; never sent to a search engine. |
+| Refresh report (existing, extended) | **dentists_web: {canada, quebec}** | `pipeline/report.json` (not published) | No |
+| Search text (temporary) | name, address, town of a public listing | Only inside the link address; leaves the browser only when Thu clicks | No |
+
+No patient data is read, stored or sent by this change.
+
+## 2.4 Error and edge cases
+
+| Case | Behaviour | Story |
+|---|---|---|
+| Listing has several websites in one value | First valid one (WR1) | AC-13.2 |
+| Website without "https://" | "https://" added | AC-13.1 |
+| "javascript:", "mailto:", "tel:", e-mail, text with spaces, empty | Treated as no website | AC-13.1 |
+| Address with a hidden user part (`https://a.ca@b.com`) | Treated as no website | AC-13.4 |
+| Bad value in the data file despite the refresh | Page check WR1b refuses it | AC-13.1 |
+| Facebook or other social page | Accepted, shown as "Website: facebook.com" | AC-13.5 |
+| Website is dead or moved | Link still shown; the note says links may be out of date. The page never checks it. | AC-14.1, W8 |
+| Generic name, no address | "Website not listed", no search link | AC-10.3 |
+| Town not found for a listing | Search uses the name (and address if generic) only | AC-10.2 |
+| Centre within 100 m of Thu's clinic, no website | Nothing appended | AC-11.3 |
+| Thu's clinic entered by a Google Maps link, no listing within 30 m | No website line in the card | AC-11.2 |
+| Another clinic shares Thu's building (within 30 m) and is closer to her saved point than her own listing | Its website could show in her card (W10 limit). She will see it at once; fix by saving her location on her own listing (pick it from the suggestions). | AC-11.1 |
+| Thu switches centre quickly | Line redrawn from the new centre each time; no outside call, so no late answer | AC-9.3 |
+| Listing data refresh fails | Previous listings, with their websites, are kept (existing behaviour) | AC-14.3 |
+| Refresh gives far fewer listings than before | Refused, previous file kept (new check, design §5) | AC-14.3 |
+| Very long address | Only the site name is shown; line wraps | AC-14.4 |
+| Dark theme, 375 px, screen reader | Existing photo block styles; labels in 2.1.1 and 2.1.4 | AC-14.4, AC-12.4 |
+
+## 2.5 Traceability
+
+| Element | Stories / criteria |
+|---|---|
+| Link line states (2.1.1) | AC-9.1, AC-9.2, AC-9.4, AC-9.5, AC-10.1, AC-10.2, AC-14.4 |
+| Competition tab flow (2.1.2) | AC-9.3, AC-11.3 |
+| Your clinic card (2.1.3) | AC-11.1, AC-11.2, AC-11.4 |
+| Table links (2.1.4) | AC-12.1 to AC-12.6 |
+| Note sentence (2.1.5) | AC-14.1, AC-10.5 |
+| WR1, WR1b usable website | AC-13.1, AC-13.2, AC-13.4 |
+| WR2 site name | AC-9.1, AC-13.4, AC-13.5 |
+| WR3 duplicates | AC-14.2 |
+| WR4, WR5 search | AC-10.2, AC-10.3, AC-10.4 |
+| WR6 Thu's clinic | W6, AC-11.1 to AC-11.3, AC-12.6 |
+| WR7 no automatic requests | W8, AC-14.6 |
+| WR8 meaning | AC-10.5 |
+| WR9 refresh report | AC-14.2 |
+| Data (2.3) | W4, AC-14.2, Loi 25 constraint |
+| W13 (US-15 not built) | US-15 |
+
+---
+
+# Iteration 1 — Clinic photo when a clinic is chosen
 
 Input: `docs/01-requirements.md` (US-1 to US-8). Status: draft for Gate 2.
 Screen texts stay in English, like the rest of the page (requirements §6 overrides the "labels in French" default of the team template). Exact texts are in quotes.
