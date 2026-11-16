@@ -1,3 +1,112 @@
+# 04 — QA report
+
+This file holds one section per iteration, newest first. Earlier iterations are kept as written.
+
+- Iteration 2 (2026-11-15): link to each clinic's website
+- Iteration 1 (2026-11-14, live): clinic photo when a clinic is chosen
+
+---
+
+# Iteration 2 — Clinic website, increment 1: websites in the listing data
+
+- **Date:** 2026-11-15
+- **Increment:** 1 of solution design §2.7 (iteration 2): website cleaning (WR1), optional `web` field, duplicate merge (WR3), `refresh.py --dentists` with the 3,000 / 75 % refusal, report counts (WR9). No page change.
+- **Tester:** independent QA agent (did not write the code)
+- **Build tested:** branch `team/clinic-website`, commits `5b342ac` (docs) and `5ade642` (increment 1)
+- **Environment:** macOS, Python 3.14.0 (`.venv`, with shapely), Node 24.22.1, headless Chrome 157, `python3 -m http.server 8123 --directory site`
+- **Verdict: APPROVED** (no blocking defect; 2 Low defects to fix before or in increment 2, 2 notes)
+
+## 1. Automated tests
+
+| Suite | Result |
+|---|---|
+| `.venv/bin/python -m unittest discover -s tests -p 'test_*.py'` (developer, `tests/test_weblink.py`) | 15 / 15 pass (including the 3 `refresh.py --dentists` runs) |
+| `node --test` (photo rules, iteration 1) | 38 / 38 pass |
+| `.venv/bin/python tests/qa/qa_web_inc1_refresh.py` (QA, new) | 6 / 6 pass |
+| `.venv/bin/python tests/qa/qa_web_inc1_adversarial.py` (QA, new) | 67 values: 59 as expected, 8 accepted that should arguably be refused (defects QA-W1, QA-W2; the script exits 1 until they are fixed) |
+| `node tests/qa/qa-web-inc1-browser.mjs` (QA, new) | 15 / 15 pass |
+| Browser regression, developer: `photo-inc3.mjs`, `photo-inc5.mjs`, `photo-inc6.mjs` | 21/21, 34/34, 20/20 |
+| Browser regression, QA: `qa-photo-inc1`, `-inc2`, `-inc2-browser`, `-inc3`, `-inc5`, `-inc6` | 36/36, 58/58, 7/7, 36/36, 56/56, 27/27 (`qa-photo-inc5` gave 55/56 once while another QA tab was running in the same Chrome; the N-9 "image fails" check read the block before it redrew. Re-run alone: 56/56. Same known timing sensitivity as noted in iteration 1; increment 1 does not touch `site/` code.) |
+
+## 2. Checks in scope
+
+| Item | What was checked | Result | Evidence |
+|---|---|---|---|
+| WR1 / AC-13.1 schemes | `javascript:` (any case, leading spaces, with a tab inside), `vbscript:`, `data:`, `mailto:`, `tel:`, `ftp:`, `file:`, `//x`, `///x`, `http:/x`, `https:x`, `localhost:8080` | PASS | All refused (`qa_web_inc1_adversarial.py`) |
+| WR1 / AC-13.1 scheme added | `www.fictive.ca` → `https://www.fictive.ca`; `fictive.ca:8080/a` → `https://fictive.ca:8080/a`; `http://` kept as is; `HTTPS://` kept | PASS | same script |
+| WR1 e-mail, spaces, empty | `info@fictive.ca`, `fictive.ca@`, "Clinique Fictive", `fic tive.ca`, non-breaking space, `''`, `' '`, `;;;`, `None`, number | PASS | all → no website |
+| WR1 user part / backslash | `https://good.ca@evil.com`, `https://user:pw@…`, `%40…@…`, `https://fictive.ca\@evil.com`, `http:\\fictive.ca` | PASS | all refused; `https://fictive.ca/#@x` correctly kept (the `@` is in the fragment, host is fictive.ca) |
+| WR1 host | no dot, `[::1]`, accented host, empty host, NUL in host | PASS | refused |
+| WR1 host, empty labels | `https://.`, `https://..`, `https://-.-`, `https://a..ca`, `https://.ca` | FAIL (Low) | Accepted. See QA-W1 |
+| WR1 port | empty port and letters refused; `:99999` and `:²` (Unicode digit) accepted | FAIL (Low) | See QA-W2 |
+| WR1 length | 500-char limit counted after "https://" is added | PASS | 503-char and 495+8-char values refused |
+| AC-13.2 first valid piece | `bad;; ;javascript:x;www.fictive.ca` → `https://www.fictive.ca`; `mailto:…;tel:1;eps.fictive.ca` → `https://eps.fictive.ca` | PASS | |
+| WR1 tag order | `website` before `contact:website` before `url`; an invalid `website` falls through to `contact:website` | PASS | |
+| Optional `web` field | Real file: 4,036 rows without the key, 1,692 with a non-empty value, never empty or `null` | PASS | key-set count on `site/data/dentists.json` |
+| WR3 duplicate merge | Kept row without (or with an invalid) website takes the dropped duplicate's website; kept row's own website wins; name match ignores case; a duplicate outside Canada adds nothing | PASS | `qa_web_inc1_refresh.py` case 6 (fake listings) |
+| `--dentists` leaves `meta.json` and `last_release.txt` alone | Hashes before and after, on success and on every refusal | PASS | `qa_web_inc1_refresh.py`, all 6 cases; also the live run below |
+| 75 % refusal (AC-14.3) | 3,750 of 5,000 accepted (exactly 75 %); 3,749 of 5,000 refused, exit 1, current file byte-identical | PASS | `qa_web_inc1_refresh.py` |
+| 3,000 refusal | 3,000 accepted; 2,999 refused even when the current file is smaller | PASS | same |
+| Broken Overpass answer | Saved file with invalid JSON: exit 1, `site/data` untouched | PASS | same (see note N-W1 on the report text) |
+| WR9 report counts | `report.json` `dentists_web` = `{canada, quebec}`; Québec = market ids starting with 24 | PASS | fake run `{canada: 3, quebec: 3}`; live run below |
+| Data reproduced through the pipeline (AC-14.2) | QA ran `refresh.py --dentists` against live Overpass on a scratch copy | PASS | 5,728 listings, `dentists_web` `{canada: 1692, quebec: 140}`; identical to the committed file (0 rows added/removed, 0 `web` differences); `meta.json` unchanged |
+| Counts in the committed file | Québec 140 of 788, Canada 1,692 of 5,728 | PASS | Counted directly in `site/data/dentists.json` |
+| Real `web` values | All 1,692: start with `http://` or `https://` (148 plain http), re-cleaning gives the same value, no port, no empty host label, no control or non-ASCII character, none over 200 chars. 15 random Québec values read by hand: all clinic sites matching the clinic name | PASS | Most frequent hosts are dental chains (aarm-dental.com 9, monarchdentistry.ca 4, …) |
+| Other listing fields | 20 new and 6 gone listings vs the previous file (normal OSM change); 0 changes to name, address, coordinates, city or market on the 5,708 common listings | PASS | diff against `4b9c47f` |
+| 20-listing Québec sample (information for Thu, requirements §2.1) | All 20 still present with the same coordinates; **3 of 20** have a website (Centre Dentaire Pellan & Lessard, Clinique Dentaire Rosemont, Paro Chirurgie Montréal) | Info | matches the CHANGELOG |
+| AC-14.5 (partial) page unaffected | Page loads the new file, no console error, no "Website" text or link to any listing site yet, no horizontal scroll, light and dark; photo feature regression all green (section 1) | PASS | `qa-web-inc1-browser.mjs` |
+| AC-14.6 no automatic requests | Hosts contacted while loading the page and a Competition centre with a website: only `localhost:8123` and `api.panoramax.xyz` (existing photo lookup) | PASS | same |
+| Yearly refresh path | Code review only: uses the same `dentists()` check and adds `dentists_web` to the full report; falls back to the current file on refusal | NOT TESTABLE | Needs a full Statistics Canada download |
+| AC-13.3, AC-13.4 (site name), AC-13.5, US-9 to US-12 | Page parts | Out of scope | Increments 2 to 5 |
+
+## 3. Other checks
+
+- **Security:** values are only cleaned and stored; nothing is rendered yet. No secret, key or token in the two commits. `pipeline/report.json`, `pipeline/out/` and `pipeline/run.log` are git-ignored, not published.
+- **Patient data (Loi 25):** none. Tests use fake clinics (`fictive.ca`, "QA Fake", "Clinique Fictive Alpha"). `dentists.json` holds public OpenStreetMap business listings and their public websites only.
+- **Labels:** no screen text in this increment. "Québec" is spelled with its accent in README and CHANGELOG; the `build_dentists.py` console line says "Quebec" (console only, not shown to Thu).
+- **Docs:** README explains `--dentists`, the refusal rules and the report; CHANGELOG entry is accurate (counts and the 3 of 20 sample verified).
+- **File size:** `dentists.json` 719,391 → 790,264 bytes (+71 KB, a bit above the design estimate of about 50 KB; harmless).
+
+## 4. Defects
+
+| ID | Severity | Summary |
+|---|---|---|
+| QA-W1 | Low | Host names made only of dots or with empty parts are accepted |
+| QA-W2 | Low | Out-of-range and non-ASCII port numbers are accepted |
+
+**QA-W1 (Low) — Host names with empty parts accepted.**
+Steps: `.venv/bin/python -c "import sys; sys.path.insert(0,'pipeline/work'); from weblink import clean_website as c; print([c({'website': v}) for v in ['https://.', 'https://..', 'https://-.-', 'https://a..ca', 'https://.ca']])"`.
+Expected: no website (the caller and the design ask for a real host name; "https://." is not one; it would become a broken link that shows a meaningless site name).
+Actual: all five values are kept unchanged.
+Impact today: none (0 of the 1,692 real values has an empty host part). Suggested fix: each dot-separated label non-empty (a single trailing dot may stay), and do the same check in the page's `safeUrl` (WR1b, increment 2).
+
+**QA-W2 (Low) — Port numbers not checked properly.**
+Steps: `clean_website({'website': 'https://fictive.ca:99999'})` and `clean_website({'website': 'https://fictive.ca:²'})`.
+Expected: no website (port must be 1 to 65535, ASCII digits; `str.isdigit()` is also true for "²" and other Unicode digits).
+Actual: both kept. A browser cannot parse either URL (`new URL()` throws), so in increment 2 `siteName`/`safeUrl` must not crash on such a value.
+Impact today: none (no real value has a port). Suggested fix: `port.isascii() and port.isdigit() and 0 < int(port) < 65536`.
+
+Not counted as a defect but worth a line in increment 2: control characters in the path (for example `https://fictive.ca/\x07`) are kept; the page should rely on `new URL()` and `textContent`, which handle them safely.
+
+## 5. Notes (not defects)
+
+- **N-W1:** when the build step itself fails (for example a broken saved Overpass file), `report.json` `failed` holds the last 300 characters of a Python traceback, cut mid-word. Readable enough for the team; a short first line ("listing build failed: …") would be clearer.
+- **N-W2:** `--dentists` overwrites `pipeline/report.json` with a short listings-only report, replacing the last yearly report. The file is not published and the workflow does not read it, so nothing breaks; just know that the yearly figures are then only in the workflow log.
+
+## 6. How to re-run
+
+```bash
+.venv/bin/python -m unittest discover -s tests -p 'test_*.py'
+.venv/bin/python tests/qa/qa_web_inc1_refresh.py        # fake listings, scratch copy, about 2 minutes
+.venv/bin/python tests/qa/qa_web_inc1_adversarial.py    # exits 1 while QA-W1 / QA-W2 are open
+python3 -m http.server 8123 --directory site &           # plus Chrome --headless=new --remote-debugging-port=9333
+node tests/qa/qa-web-inc1-browser.mjs
+```
+
+---
+
+# Iteration 1 — Clinic photo when a clinic is chosen
+
 # 04 — QA report: clinic photo, increment 1
 
 - **Date:** 2026-11-14
