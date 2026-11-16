@@ -2,8 +2,117 @@
 
 This file holds one section per iteration, newest first. Earlier iterations are kept as written.
 
-- Iteration 2 (2026-11-15): link to each clinic's website
+- Iteration 2 (2026-11-15): link to each clinic's website (increment 2 on top, then increment 1)
 - Iteration 1 (2026-11-14, live): clinic photo when a clinic is chosen
+
+---
+
+# Iteration 2 — Clinic website, increment 2: link rules for the page (nothing visible yet)
+
+- **Date:** 2026-11-15
+- **Increment:** 2 of solution design §2.7 (iteration 2): new `site/assets/web.js` (global `dmWeb`: `safeUrl`, `siteName`, `isGeneric`, `searchText`, `searchUrl`, `ownListing`, `cardLink`, `linkFor`), loaded by the page but not used; fixes QA-W1 and QA-W2 in `pipeline/work/weblink.py` and `safeUrl`; control characters refused in both.
+- **Tester:** independent QA agent (did not write the code)
+- **Build tested:** branch `team/clinic-website`, commit `fef5bc3`
+- **Environment:** macOS, Node 24.22.1, Python 3.14.0 (`.venv`, with shapely), headless Chrome 157, `python3 -m http.server 8123 --directory site`; the previous increment (`cdb563e`) served alongside for comparison
+- **Verdict: REJECTED** (1 Medium defect, QA-W5, against AC-9.3; 2 Low defects; QA-W1 and QA-W2 confirmed fixed)
+
+## 1. Automated tests
+
+| Suite | Result |
+|---|---|
+| `node --test` (developer: `tests/photo.test.mjs`, `tests/web.test.mjs`) | 57 / 57 pass |
+| `.venv/bin/python -m unittest discover -s tests -p 'test_*.py'` (developer, `tests/test_weblink.py`) | 18 / 18 pass |
+| `.venv/bin/python tests/qa/qa_web_inc1_adversarial.py` (QA, increment 1) | 0 problems (was 8: QA-W1 and QA-W2 fixed) |
+| `node tests/qa/qa-web-inc2.mjs` (QA, new: rules, parity with the refresh, geometry, privacy, real data) | 87 pass, 5 fail (QA-W3 1, QA-W4 1, QA-W5 3); exits 1 until fixed |
+| `node tests/qa/qa-web-inc2-browser.mjs` (QA, new: this build vs `cdb563e`, 6 page states) | 60 / 60 pass |
+| `node tests/qa/qa-web-inc1-browser.mjs` (QA, increment 1) | 15 / 15 pass |
+| Browser regression, developer: `photo-inc3`, `photo-inc5`, `photo-inc6` | 21/21, 34/34, 20/20 |
+| Browser regression, QA: `qa-photo-inc1`, `-inc2`, `-inc2-browser`, `-inc3`, `-inc5`, `-inc6` | 36/36 (35/36 on a first run right after other checks, see notes), 58/58, 7/7, 36/36, 56/56, 27/27 |
+
+## 2. Checks in scope
+
+| Item | What was checked | Result | Evidence |
+|---|---|---|---|
+| QA-W1 fixed (both places) | `https://.`, `https://..`, `https://-.-`, `https://a..ca`, `https://.ca`, `-fictive.ca`, `fictive-.ca`, `fictive.ca..` refused by `clean_website` and `safeUrl`; `https://fictive.ca.` still kept | PASS | `qa_web_inc1_adversarial.py` 0 problems; `qa-web-inc2.mjs` hand list |
+| QA-W2 fixed (both places) | `:99999`, `:65536`, `:0`, `:²`, `:-1`, `:+80`, `:` refused; `:1`, `:65535`, `:00080` kept, in both | PASS | same |
+| Control characters | `\x00`, `\x07`, `\x7f` anywhere refused in both | PASS | same |
+| Both checks agree on all 1,692 real values | Every stored `web` value: `safeUrl(v) === v` and `clean_website({'website': v}) === v`; `siteName` equals the browser's host without "www." for all | PASS | `qa-web-inc2.mjs` section 1 |
+| Both checks agree on other values | 28,361 adversarial and random stored-style values: 120 disagreements, all of 3 kinds: last host label all digits (117, refresh keeps, page refuses), U+0085 / U+FEFF (2), ";" (1, never stored) | FAIL (Low) | QA-W3. None occurs in the real data |
+| WR1b `safeUrl` never throws | 30,000+ strings plus `undefined`, `null`, numbers, `NaN`, `Symbol`, `BigInt`, functions, `String` objects, objects whose `toString` throws, lone surrogates, a 1,000,000-char string | PASS | `qa-web-inc2.mjs` sections 2 and 3 |
+| Other functions never throw | Same odd inputs into `siteName`, `isGeneric`, `searchText`, `searchUrl`, `ownListing`, `cardLink`, `linkFor` | FAIL (Low) | QA-W4: `searchUrl` / `linkFor` throw `URIError` on a lone surrogate in the name, address or town |
+| WR1b / AC-13.1 / AC-13.4 | `javascript:`, `data:`, `mailto:`, `tel:`, `ftp:`, `//x`, no scheme, user part, `%40`, backslash, `[::1]`, accented host refused; `https://evil.example#@good.ca` and `?@good.ca` kept with site name `evil.example` (the real destination) | PASS | `qa-web-inc2.mjs` sections 2 and 4 |
+| WR2 / AC-9.1 / AC-13.5 site name | Spec examples (`cliniquexyz.ca`, `m.facebook.com`, `xyz.ca` without port); `facebook.com`; upper-case `WWW.`; trailing dot dropped; only "www." removed (`www2.` kept); `good.ca.evil.example` shown in full | PASS | section 4 |
+| WR4 generic names | 19 generic forms (case, accents, hyphens, punctuation, "Cabinet de dentiste", "The Dental Clinic", "Centré dentaire") and 7 named forms | PASS | section 5. Plurals "dentaires", "cliniques" not in the list: PM decision, added in increment 3, not counted |
+| WR4 search text / AC-10.2 / AC-10.3 | Named: name + town, address not added; generic: name + address + town (spec example "Dentist 292 Freshwater Road St. John's"); generic with empty or blank address: nothing; spaces collapsed; accents kept ("Lévis"); town missing: name only | PASS | section 5 |
+| WR5 / AC-10.4 search link | `https://www.google.com/search?q=` + encoded text; only the `q` parameter; `&`, `#`, `+`, accents round-trip; empty or blank text: no link | PASS | section 5 |
+| W10 own listing | Closest of two within 30 m wins; 29.5 m counts, 30.5 m does not; no saved clinic: none | PASS | section 6 |
+| WR6 spec example | Saved P; A 12 m with website: card and centre "Website: macliniquefictive.ca"; B 70 m without: none; C 400 m without: "Website not listed" + "Search the web", aria "Search the web for [name]" | PASS | section 6 |
+| AC-11.2 card never searches | Own listing without website, with unsafe website, listing 50 m away, nothing saved: all "none" | PASS | section 6 |
+| W11 100 m guard | 95 m: none, 105 m: search, for the saved clinic and for a location saved earlier in the visit; generic name without address near Thu: none (not "Website not listed"); neighbour with website keeps it; bad guard entries ignored; text coordinates handled | PASS | section 6 |
+| W11 privacy property | 4,000 random centres 0 to 99.9 m from the saved clinic or an earlier location: 0 search or "Website not listed" states; Thu's saved name never in a URL | PASS | section 6 |
+| AC-9.3 / WR6: another clinic in Thu's building | A competitor 20 m from Thu's saved clinic, chosen as centre, shows **Thu's** website under the competitor's name | FAIL (Medium) | QA-W5 |
+| Real listings, no saved clinic | 5,728 listings: 1,692 "Website" (URL = stored value), 3,570 "Search the web", 466 "Website not listed" (generic name, no address), 0 none | PASS / Info | section 7 |
+| No UI change | 6 page states (default; Competition centre with a website, light and dark; generic "Dentist" centre; fake saved clinic as centre; card on Markets tab, dark) at 375 px: visible text and every link identical to `cdb563e`; no "Website", "Website not listed" or "Search the web" text; no Google search link; no horizontal scroll | PASS | `qa-web-inc2-browser.mjs` |
+| No new outside requests (AC-14.6) | Hosts contacted identical to `cdb563e` in all 6 states (only the page and the existing `api.panoramax.xyz` photo lookup); `web.js` has no `fetch`, `document`, `window`, `Image`, `import()` or `eval` | PASS | same, plus code read |
+| `dmWeb` global | Present with the 8 rules and `NOT_LISTED`; absent in the previous build | PASS | same |
+| No console errors | All 6 states | PASS | same |
+| Deploy cache-busting | `deploy.yml` versions every `assets/*.js` in `index.html`, so `web.js` gets `?v=` too | PASS | code read |
+| US-9 to US-12 on screen, AC-14.1, AC-14.4 | Page parts | Out of scope | Increments 3 to 5 |
+
+## 3. Other checks
+
+- **Security:** `web.js` is pure: no DOM, no network, no storage. Only `http:`/`https:` pass; the site name comes from the browser's own parse of the same string the link will open. Note (not a defect): IPv4-style hosts are accepted by design (`https://192.0.2.1`), and the browser reads `https://0x7f.1` as `127.0.0.1`; the site name then honestly shows "127.0.0.1". Nothing like this is in the data.
+- **Patient data (Loi 25):** none. The developer's and QA's tests use fake clinics and sites (`fictive.ca`, `macliniquefictive.ca`, "Fake Smile", "QA Fake Clinic"). The only real data read is the public OpenStreetMap listing file. `site/content/local.json` (private notes on closed practices) is git-ignored and was never committed; QA copied it only into its scratch copy of the previous build so the two pages compare fairly.
+- **Labels:** no new screen text yet. The rule texts in `web.js` match the spec exactly: "Website: [site name]", "Website not listed", "Search the web", aria "Search the web for [clinic name]". Accents are kept in search text ("Lévis", "Québec") and ignored only for the generic-name test.
+- **Docs:** CHANGELOG and README accurate (test counts reproduced; "all 1,692 websites still pass both checks" confirmed).
+
+## 4. Defects
+
+| ID | Severity | Summary |
+|---|---|---|
+| QA-W5 | Medium | A competitor in Thu's building (within 30 m), chosen as centre, gets Thu's website |
+| QA-W4 | Low | `searchUrl` / `linkFor` throw on a lone surrogate in the name, address or town |
+| QA-W3 | Low | Refresh and page checks still disagree on a few odd hosts and characters |
+| QA-W1 | Low | Fixed in `fef5bc3` (verified) |
+| QA-W2 | Low | Fixed in `fef5bc3` (verified) |
+
+**QA-W5 (Medium) — Thu's website shown under a neighbouring competitor's name.**
+Steps: `node --input-type=module -e "await import('./site/assets/photo.js'); await import('./site/assets/web.js'); const saved={name:'Ma Clinique Fictive',lat:46.8,lon:-71.2}; const A={...saved, web:'https://macliniquefictive.ca'}; const B={name:'Clinique Voisine Fictive',lat:46.80018,lon:-71.2,web:'https://voisinefictive.ca'}; console.log(dmWeb.linkFor(B,{saved,listings:[A,B]}))"` (B is 20 m from the saved clinic).
+Expected: B's own website "Website: voisinefictive.ca" (AC-9.3: "Clinic A's website is never shown with clinic B's name"); if B had no website, nothing (W11).
+Actual: `{kind: 'site', label: 'Website: macliniquefictive.ca'}`, i.e. Thu's own site under "Competition around Clinique Voisine Fictive". Without a website on B, same result. If Thu's listing has no website and B has one, B's own website is hidden.
+Cause: `linkFor` sends every centre within 30 m (`dmPhoto.isMine`) to `cardLink(saved)`, which returns the website of the listing closest to the saved point, not of the centre.
+Impact: real. The data has 402 pairs of differently named listings within 30 m of each other (shared buildings, medical towers), 180 of them involving a website, 19 in Québec.
+Suggested fix: when the centre is a listing (not the saved point itself, `c.mine`), use its own website if safe, else nothing; keep `cardLink(saved)` only for the "Use your clinic" centre. The designer may want to state this in WR6 ("Centre that is Thu's clinic" = her saved point or her W10 listing, not any listing within 30 m).
+
+**QA-W4 (Low) — `searchUrl` / `linkFor` can throw.**
+Steps: `dmWeb.searchUrl('Clinique \ud800')`, or `dmWeb.linkFor({lat:46.8, lon:-71.2, name:'Clinique Fictive \ud800'}, {town:'Lévis'})`.
+Expected: no exception (an empty search link or a cleaned text), like `safeUrl`.
+Actual: `URIError: URI malformed` from `encodeURIComponent`. In increment 3 this would stop the link line (and maybe the photo block) from drawing for that clinic.
+Impact today: none (0 lone surrogates in the data and town names). Suggested fix: `try/catch` in `searchUrl` returning `''`, or replace lone surrogates (`s.toWellFormed()` where available).
+
+**QA-W3 (Low) — The two checks still disagree on a few values.**
+Steps: compare `clean_website({'website': v}) == v` with `dmWeb.safeUrl(v) !== ''` for `https://999.999.999.999`, `https://fictive.123`, `https://a.9`; for `https://fictive.ca/\u0085` and `https://fictive.ca/﻿`.
+Expected: the same answer in both places (CHANGELOG: "same rules in weblink.py and safeUrl").
+Actual: hosts whose last part is all digits are kept by the refresh and refused by the page (the browser reads them as a bad IPv4 address); U+0085 is refused by the refresh and kept by the page; U+FEFF the other way round. In every case the page simply shows the search link instead of a website, or links to a harmless address.
+Impact today: none (0 such values in the 1,692). Suggested fix: in `weblink.py` refuse a host whose last label is all digits unless it is a valid dotted IPv4, and make both control-character rules the same (for example refuse all non-ASCII before the host check, or the same explicit character set in both).
+
+## 5. Notes (not defects)
+
+- **N-W3:** 466 real listings (8 %) have a generic name and no address, so they will show "Website not listed" without a search link. Several common names are not in the WR4 list and so will be searched as named clinics: "Denture Clinic" (11 listings), "Family Dentistry" (7), "Family Dental Care" (5), "Orthodontics"-style names. Search results for "Denture Clinic [town]" may be vague; worth a look with the increment 3 plural update.
+- **N-W4:** `siteName('https://www.ca')` gives "ca". Harmless, nothing like it in the data.
+- **Regression timing:** `qa-photo-inc1` gave 35/36 once when run right after other browser checks: its "card hidden with no saved clinic" step reloads the page with only a `#` change, which does not reload, so a clinic saved by the previous check was still in memory. Run alone: 36/36. A test-order effect of the QA script, not of this increment (the site code is unchanged apart from loading `web.js`).
+
+## 6. How to re-run
+
+```bash
+node --test
+.venv/bin/python -m unittest discover -s tests -p 'test_*.py'
+.venv/bin/python tests/qa/qa_web_inc1_adversarial.py
+node tests/qa/qa-web-inc2.mjs                    # uses tests/qa/qa_web_inc2_clean.py; exits 1 while QA-W3/W4/W5 are open
+python3 -m http.server 8123 --directory site &    # plus Chrome --headless=new --remote-debugging-port=9333
+git archive cdb563e site | tar -x -C /some/dir && python3 -m http.server 8131 --directory /some/dir/site &
+node tests/qa/qa-web-inc2-browser.mjs
+```
 
 ---
 
