@@ -4,6 +4,8 @@
   python pipeline/refresh.py                 only runs if the January tables are newer
   python pipeline/refresh.py --force         runs even if they are not
   python pipeline/refresh.py --no-download   rebuilds from files already in pipeline/dl
+  python pipeline/refresh.py --dentists      only rebuilds the dentist listings (with websites) from
+                                             OpenStreetMap; add a saved Overpass answer file to use it instead
 
 site/data is only replaced when every check passes.
 """
@@ -12,6 +14,8 @@ K=os.path.dirname(os.path.abspath(__file__)); W=K+'/work/'; X=K+'/dl/x/'; O=K+'/
 LAST=K+'/last_release.txt'
 WDS='https://www150.statcan.gc.ca/t1/wds/rest/'
 LOCAL='--no-download' in sys.argv
+sys.path.insert(0,W)
+from weblink import web_counts,enough_listings
 def output(**v):
     if os.environ.get('GITHUB_OUTPUT'):
         with open(os.environ['GITHUB_OUTPUT'],'a') as f:
@@ -36,6 +40,21 @@ def run(s,*a):
     open(K+'/run.log','a').write(f'--- {s}\n{r.stdout}\n{r.stderr}\n')
     if r.returncode: raise SystemExit(f'{s} failed:\n{r.stderr[-1500:]}')
     return r.stdout
+def dentists(*saved):
+    # Rebuilds pipeline/out/dentists.json; returns (rows, error). Refused below 3,000 or under 75 % of the current file.
+    os.makedirs(O,exist_ok=True)
+    d=subprocess.run([sys.executable,W+'build_dentists.py',K+'/geo',O+'dentists.json',*saved],capture_output=True,text=True)
+    if d.returncode: return None,d.stderr[-300:].strip()
+    new,old=json.load(open(O+'dentists.json')),json.load(open(DATA+'dentists.json'))
+    if not enough_listings(len(new),len(old)): return None,f'only {len(new)} dentists against {len(old)} now, keeping the old file'
+    return new,None
+if '--dentists' in sys.argv:
+    # Listings only (design 2.4): meta.json and last_release.txt are not touched
+    i=sys.argv.index('--dentists'); new,err=dentists(*[a for a in sys.argv[i+1:i+2] if not a.startswith('--')])
+    rep=dict(dentists=len(new) if new else None,dentists_web=web_counts(new) if new else None,failed=[err] if err else [])
+    json.dump(rep,open(K+'/report.json','w'),indent=1,ensure_ascii=False); print(json.dumps(rep,indent=1,ensure_ascii=False))
+    if err: sys.exit(1)
+    shutil.copy(O+'dentists.json',DATA+'dentists.json'); print('site/data/dentists.json updated'); sys.exit(0)
 release=None
 if not LOCAL:
     times=[post('getCubeMetadata',[{'productId':p}])[0]['object']['releaseTime'] for p in(17100152,17100153)]
@@ -52,17 +71,15 @@ if not LOCAL:
     run('extract152.py',X[:-1],W+'age152.csv')
 os.makedirs(O,exist_ok=True)
 out=run('build2.py',K); out+=run('build3.py',K)
-d=None
-if not LOCAL: d=subprocess.run([sys.executable,W+'build_dentists.py',K+'/geo',O+'dentists.json'],capture_output=True,text=True)
-pins=bool(d) and d.returncode==0
+pins,err=(False,None) if LOCAL else dentists()
 if not pins:
     shutil.copy(DATA+'dentists.json',O+'dentists.json')
-    if d: print('dentists kept from the last run:',d.stderr[-300:],flush=True)
+    if err: print('dentists kept from the last run:',err,flush=True)
 m=json.load(open(O+'markets.json')); st=json.load(open(W+'stage2.json')); s3=json.load(open(W+'stage3.json')); biz=json.load(open(K+'/dl/business.json'))
 rec=[l for l in out.splitlines() if l.startswith('reconcile')][0].split()
 prev=json.load(open(DATA+'markets.json'))
 rows={f[:-5]:len(json.load(open(O+f))) for f in os.listdir(O) if not f.startswith('map_')}
-rep=dict(age_year=st['AY'],migration_year=st['Y'],business=biz,markets=len(m),dentists_updated=pins,
+rep=dict(age_year=st['AY'],migration_year=st['Y'],business=biz,markets=len(m),dentists_updated=bool(pins),dentists_web=web_counts(json.load(open(O+'dentists.json'))),
   people=sum(r['pop'] for r in m),net=sum(r['net'] for r in m),arrivals=sum(r['arrivals'] for r in m),departures=sum(r['departures'] for r in m),offices=sum(r['offices'] for r in m),
   status={s:sum(r['action']==s for r in m) for s in('Growing','Steady','Shrinking','High turnover')},
   reconcile_max=float(rec[rec.index('max')+1]),rows=rows,

@@ -73,6 +73,14 @@ Statistics Canada updates the market data each January.
 
 The workflow is also scheduled for February 1, but GitHub turns schedules off in public repositories after 60 days with no activity, so plan to run it by hand. The scheduled time is 14:00 UTC.
 
+**Dentist listings only** (for example to pick up clinic websites added in OpenStreetMap since the yearly refresh):
+
+```bash
+.venv/bin/python pipeline/refresh.py --dentists
+```
+
+It downloads the dentist listings from OpenStreetMap (Overpass, about 1 to 3 minutes) and replaces only `site/data/dentists.json`; `meta.json` and `pipeline/last_release.txt` are left alone. It refuses the download, keeps the current file and exits with code 1 if it has fewer than 3,000 listings or fewer than 75 % of the current file. If Overpass is slow, save its answer to a file and pass it: `pipeline/refresh.py --dentists saved-overpass.json`. `pipeline/report.json` gives the listing count and `dentists_web`, the number of listings with a website for Canada and Québec. These counts are for the team only and are never shown on the page. The website of each listing comes from the OpenStreetMap tags `website`, `contact:website` or `url`, cleaned by `pipeline/work/weblink.py` (only `http`/`https` addresses with a real host name are kept; e-mail addresses, `javascript:` and similar are dropped), and stored as the optional field `web`.
+
 `site/data` is only replaced when every check in `pipeline/refresh.py` passes. Dates shown on the page come from `site/data/meta.json`, which the refresh writes.
 
 ## Layout
@@ -85,7 +93,7 @@ The workflow is also scheduled for February 1, but GitHub turns schedules off in
 | `site/assets/photo.js` | Rules for the clinic photo block (photo choice, privacy guard, source parsing, credit line, Google Maps link, Panoramax lookup, own-photo rules), tested in Node |
 | `site/assets/styles.css` | Styles, including light and dark themes |
 | `site/data/` | Data files used by the page |
-| `tests/` | Node tests (`node --test`); `tests/browser/` has the browser checks, `tests/qa/` QA's own checks, `tests/coverage/` the photo coverage measurement |
+| `tests/` | Node tests (`node --test`); Python tests for the pipeline (`.venv/bin/python -m unittest discover -s tests -p 'test_*.py'`, the refresh tests are skipped without shapely); `tests/browser/` has the browser checks, `tests/qa/` QA's own checks, `tests/coverage/` the photo coverage measurement |
 | `pipeline/` | Scripts, boundaries and saved 2021 Census results |
 
 ## Data and licences
