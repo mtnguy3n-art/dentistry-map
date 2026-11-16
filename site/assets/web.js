@@ -7,13 +7,19 @@
   const text = (v) => (typeof v === 'string' ? v.trim() : '');
   const MAX_LEN = 500;
 
-  /* WR1b with QA-W1 and QA-W2: the same host and port rules as pipeline/work/weblink.py */
+  /* WR1b with QA-W1, QA-W2 and QA-W3: the same host, port and character rules as pipeline/work/weblink.py */
   const SCHEME = /^https?:\/\//i;
-  const BAD_CHAR = /[\s\x00-\x1f\x7f\\]/; /* spaces, control characters, backslash */
+  /* QA-W3: one explicit list, identical in weblink.py: space and control characters (C0, DEL, C1 incl. U+0085),
+     Unicode spaces, U+FEFF and backslash */
+  const BAD_CHAR = /[\x00-\x20\x7f-\xa0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000\ufeff\\]/;
   const LABEL = /^[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?$/;
+  /* QA-W3: a last part that is a number (all digits, or "0x" hex) makes the browser read the host as an IPv4 address;
+     only a plain dotted IPv4 address (four numbers 0 to 255, no leading zero) is kept */
+  const NUMERIC = /^([0-9]+|0x[0-9a-f]*)$/i;
+  const ipv4 = (labels) => labels.length === 4 && labels.every((x) => /^(0|[1-9][0-9]{0,2})$/.test(x) && Number(x) < 256);
   const hostOk = (host) => {
     const labels = (host.endsWith('.') ? host.slice(0, -1) : host).split('.');
-    return labels.length > 1 && labels.every((x) => LABEL.test(x));
+    return labels.length > 1 && labels.every((x) => LABEL.test(x)) && (!NUMERIC.test(labels[labels.length - 1]) || ipv4(labels));
   };
   const portOk = (port) => /^[0-9]+$/.test(port) && Number(port) > 0 && Number(port) < 65536;
 
@@ -45,7 +51,12 @@
   /* WR4: a name made only of these words says nothing about which clinic it is */
   const GENERIC = new Set(['dentist', 'dentists', 'dentiste', 'dentistes', 'dental', 'dentaire', 'dentistry', 'denturist',
     'denturologiste', 'office', 'clinic', 'clinique', 'centre', 'center', 'cabinet', 'care', 'soins', 'de', 'du', 'des',
-    'la', 'le', 'the']);
+    'la', 'le', 'the',
+    /* PM decision (fix round 1): plurals and English generic words, e.g. "Cliniques dentaires", "Denture Clinic",
+       "Family Dentistry", "Dentisterie familiale" */
+    'dentaires', 'cliniques', 'clinics', 'centres', 'centers', 'offices', 'cabinets', 'soin', 'denturists',
+    'denturologistes', 'denturiste', 'denturistes', 'denture', 'dentures', 'family', 'familiale', 'familial',
+    'dentisterie', 'and', 'et']);
   const words = (s) => text(s).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
     .replace(/[^a-z0-9]+/g, ' ').trim().split(' ').filter(Boolean);
   const isGeneric = (name) => words(name).every((w) => GENERIC.has(w)); /* an empty name is generic too */
@@ -58,8 +69,14 @@
     if (!isGeneric(name)) return join(name, town);
     return text(listing.address) ? join(name, listing.address, town) : '';
   };
-  /* WR5: the search link holds the search text only */
-  const searchUrl = (t) => (text(t) ? 'https://www.google.com/search?q=' + encodeURIComponent(join(t)) : '');
+  /* QA-W4: lone surrogate halves cannot be encoded; drop them so the link can always be built */
+  const wellFormed = (s) => s.replace(/[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/g, '');
+  /* WR5: the search link holds the search text only. Never throws. */
+  const searchUrl = (t) => {
+    const q = join(wellFormed(text(t)));
+    if (!q) return '';
+    try { return 'https://www.google.com/search?q=' + encodeURIComponent(q); } catch { return ''; }
+  };
 
   /* W10: Thu's listing = the closest listing within 30 m of her saved clinic, or null */
   const MINE_M = 30;
@@ -93,18 +110,20 @@
      ctx.listings = all listings (for W10); ctx.town = the listing's town as shown in the suggestions.
      Returns {kind: 'site'|'search'|'listed'|'none', url, label, aria, note}; note is the "Website not listed" text. */
   const linkFor = (c, ctx = {}) => {
-    const {okPoint, isMine, lookupAllowed} = P();
+    const {okPoint, lookupAllowed} = P();
     if (!c || !okPoint(c.lat, c.lon)) return NONE;
     const {saved = null, guard = [], listings = [], town = ''} = ctx || {};
-    /* Thu's own clinic: the same as her card (W10). Without a saved clinic, a centre marked as hers uses its own spot. */
-    if (isMine(c, saved)) return cardLink(saved && okPoint(saved.lat, saved.lon) ? saved : c, listings);
+    /* Thu's own clinic (the "Use your clinic" centre, marked mine, or the saved clinic itself): the same as her card (W10).
+       QA-W5: any other listing, even one in her building within 30 m, only ever gets its own website (or nothing, W11),
+       so another clinic's website is never shown under its name (AC-9.3). */
+    if (c.mine || c === saved) return cardLink(saved && okPoint(saved.lat, saved.lon) ? saved : c, listings);
     const own = site(c.web);
     if (own) return own;
     /* W11: no search link within 100 m of the saved clinic or of a location saved earlier this visit */
     if (!lookupAllowed(c, saved, guard)) return NONE;
     const url = searchUrl(searchText(c, town));
     if (!url) return {kind: 'listed', url: '', label: '', aria: '', note: NOT_LISTED};
-    return {kind: 'search', url, label: 'Search the web', aria: `Search the web for ${text(c.name) || 'this clinic'}`, note: NOT_LISTED};
+    return {kind: 'search', url, label: 'Search the web', aria: `Search the web for ${wellFormed(text(c.name)).trim() || 'this clinic'}`, note: NOT_LISTED};
   };
 
   globalThis.dmWeb = {safeUrl, siteName, isGeneric, searchText, searchUrl, ownListing, cardLink, linkFor, NOT_LISTED};

@@ -780,7 +780,7 @@ dash.draw('clinic-towns', (tb) => {
   fill(tb, sorted('clinic-towns', clinicTowns()), 'id', [[(r) => (r.home ? r.name + ' (clinic)' : r.name)], [(r) => r.fsas], [(r) => (r.home ? '—' : f.dec(r.km) + ' km'), 'n'], [(r) => dash_(r.growth, f.spct), 'n'], [(r) => dash_(r.offices, f.int), 'n'], [(r) => dash_(r.people_office, f.int), 'n'], [(r) => (r.segment ? segCell(r.segment) : '—')], [(r) => dash_(r.income, f.usd), 'n']]);
 });
 dash.draw('clinic-rivals', (tb) => {
-  fill(tb, clinicRivals().slice(0, 12), 'name', [[(r) => r.name], [(r) => (r.km < 1 ? Math.round(r.km * 1000) + ' m' : f.dec(r.km) + ' km'), 'n']]);
+  fill(tb, clinicRivals().slice(0, 12), 'name', [[(r) => nameCell(r.name, r)], [(r) => (r.km < 1 ? Math.round(r.km * 1000) + ' m' : f.dec(r.km) + ' km'), 'n']]);
 });
 
 /* competition map: equal patient radii around any listing, or your clinic, and the listings near it */
@@ -924,18 +924,46 @@ const loadImage = (url, signal) => new Promise((res) => {
   if (signal) { if (signal.aborted) { res(false); return; } signal.addEventListener('abort', stop); }
   img.src = url;
 });
+/* clinic website links (iteration 2): a new tab that cannot control this page and is not told its address (AC-13.3);
+   text set with textContent only, never as HTML */
+const extLink = (href, text, aria) => {
+  const a = document.createElement('a');
+  a.href = href; a.target = '_blank'; a.rel = 'noopener noreferrer'; a.referrerPolicy = 'no-referrer'; a.textContent = text;
+  if (aria) a.setAttribute('aria-label', aria);
+  return a;
+};
+/* spec 2.1.1: website part of the link line, decided from the page data at once (no outside call, AC-9.5).
+   Thu's card and "Use your clinic" are marked mine: her listing's website or nothing, never a search (WR6, W11). */
+const webFor = (c) => (c ? dmWeb.linkFor(c, {saved: clinic, guard: privateSpots, listings: D('dentists') || [], town: placeOf(c)}) : dmWeb.linkFor(null));
+const webParts = (w) => {
+  if (w.kind === 'site') return [' \u00b7 ', extLink(w.url, w.label, w.aria)];
+  if (w.kind === 'search') return [` \u00b7 ${w.note} \u00b7 `, extLink(w.url, w.label, w.aria)];
+  if (w.kind === 'listed') return [` \u00b7 ${w.note}`];
+  return [];
+};
+/* spec 2.1.4: small "Website" link after the name in the clinic tables; nothing when no usable website (AC-12.3) */
+const nameCell = (name, r) => {
+  const url = dmWeb.safeUrl(r.web);
+  if (!url) return name;
+  const sp = document.createElement('span');
+  const a = extLink(url, 'Website', `Website of ${r.name}`);
+  a.className = 'dm-tlink';
+  sp.append(name, ' ', a);
+  return sp;
+};
 const photoLookup = dmPhoto.createLookup({fetch: (...a) => fetch(...a), loadImage, onDone: () => dash.draw('hub-photo')});
 const photoBlock = (el, c) => {
   const v = dmPhoto.view(c, clinic, {guard: privateSpots, own: ownPhoto()});
   const got = v && v.lookup ? photoLookup.get(c) : {state: 'none', photo: null};
-  const sig = v ? [v.link, v.privacy, v.state, v.state === 'own' ? ownVer : '', got.state, got.photo ? got.photo.url : '', c.name].join('|') : '';
+  const w = webFor(v ? c : null);
+  const sig = v ? [v.link, v.privacy, v.state, v.state === 'own' ? ownVer : '', got.state, got.photo ? got.photo.url : '', c.name, w.kind, w.url, w.label, w.aria].join('|') : '';
   if (el.dataset.sig === sig) return; /* same content: keep the image as it is, no flicker on redraws */
   el.dataset.sig = sig;
   el.hidden = !v;
   if (!v) { el.replaceChildren(); return; }
   const link = () => { const a = document.createElement('a'); a.href = v.link; a.target = '_blank'; a.rel = 'noopener noreferrer'; a.textContent = 'View on Google Maps'; return a; };
   const note = (...parts) => { const p = document.createElement('p'); p.className = 'dm-note'; p.append(...parts); return p; };
-  const plain = (t) => note(t + ' \u00b7 ', link());
+  const plain = (t) => note(t + ' \u00b7 ', link(), ...webParts(w));
   const out = [];
   if (v.state === 'own') {
     /* Thu's own photo: a data address held in this browser, so showing it makes no network request */
@@ -958,7 +986,7 @@ const photoBlock = (el, c) => {
     }
     img.className = 'dm-photo-img'; img.alt = `Street view of ${c.name}`;
     const src = cr.page ? Object.assign(document.createElement('a'), {href: cr.page, target: '_blank', rel: 'noopener noreferrer', textContent: cr.source}) : cr.source;
-    out.push(img, note(cr.before, src, cr.after + ' \u00b7 ' + dmPhoto.NOTE + ' \u00b7 ', link()));
+    out.push(img, note(cr.before, src, cr.after + ' \u00b7 ' + dmPhoto.NOTE + ' \u00b7 ', link(), ...webParts(w)));
   } else out.push(plain(v.text));
   if (v.privacy) out.push(note(v.privacy));
   el.replaceChildren(...out);
@@ -1150,7 +1178,7 @@ dash.draw('rival-map', (el) => {
   el.appendChild(l);
 });
 dash.draw('rival-table', (tb) => {
-  fill(tb, [...rivalRows(), ...rivalClosed()], 'name', [[(r) => (closedNote(r) && r.service === CLOSED ? `${r.name} (${closedNote(r).note})` : r.name)], [(r) => {
+  fill(tb, [...rivalRows(), ...rivalClosed()], 'name', [[(r) => nameCell(closedNote(r) && r.service === CLOSED ? `${r.name} (${closedNote(r).note})` : r.name, r)], [(r) => {
     const s = document.createElement('select');
     s.className = 'dash-select'; s.setAttribute('aria-label', 'Main service of ' + r.name);
     s.append(...[...SERVICES, CLOSED].map((x) => new Option(x, x)));

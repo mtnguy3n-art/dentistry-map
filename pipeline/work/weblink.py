@@ -8,6 +8,12 @@ TAGS = ('website', 'contact:website', 'url')
 MAX_LEN = 500
 _OTHER_SCHEME = re.compile(r'^[a-z][a-z0-9+-]*:', re.I)  # javascript:, mailto:, tel:, ftp:, ...
 _LABEL = re.compile(r'^[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?$')  # one dot-separated part of a host name
+# QA-W3: a last part that is a number (all digits, or "0x" hex) makes browsers read the host as an IPv4 address;
+# only a plain dotted IPv4 address is then kept (_ipv4)
+_NUMERIC = re.compile(r'^([0-9]+|0x[0-9a-f]*)$', re.I)
+# QA-W3: one explicit list, identical in site/assets/web.js (safeUrl): space and control characters (C0, DEL,
+# C1 incl. U+0085), Unicode spaces, U+FEFF and backslash
+_BAD_CHAR = re.compile('[\x00-\x20\x7f-\xa0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000\ufeff\\\\]')
 
 
 def host_ok(host):
@@ -15,7 +21,12 @@ def host_ok(host):
     if host.endswith('.'):
         host = host[:-1]
     labels = host.split('.')
-    return len(labels) > 1 and all(_LABEL.match(x) for x in labels)
+    return len(labels) > 1 and all(_LABEL.match(x) for x in labels) and (not _NUMERIC.match(labels[-1]) or _ipv4(labels))
+
+
+def _ipv4(labels):
+    """QA-W3: only a plain dotted IPv4 address (four numbers 0 to 255, no leading zero) may end in a number."""
+    return len(labels) == 4 and all(re.match(r'^(0|[1-9][0-9]{0,2})$', x) and int(x) < 256 for x in labels)
 
 
 def port_ok(port):
@@ -25,7 +36,7 @@ def port_ok(port):
 
 def _clean_piece(s):
     s = s.strip()
-    if not s or re.search(r'[\s\x00-\x1f\x7f]', s) or '\\' in s:  # spaces, control characters, backslash
+    if not s or _BAD_CHAR.search(s):  # spaces, control characters, U+FEFF, backslash (QA-W3)
         return None
     at, slash = s.find('@'), s.find('/')
     if at >= 0 and (slash < 0 or at < slash):  # an e-mail address

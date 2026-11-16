@@ -133,7 +133,7 @@ test('AC-11.2: card and own centre never show a search or "not listed"; nothing 
   const noWeb = [{...A, web: undefined}, B];
   assert.equal(W.cardLink(saved, noWeb).kind, 'none');
   assert.equal(W.linkFor({...saved, mine: true}, {saved, listings: noWeb, town: 'Québec'}).kind, 'none');
-  assert.equal(W.linkFor(A, {saved, listings: noWeb}).kind, 'none');
+  assert.equal(W.linkFor(noWeb[0], {saved, listings: noWeb}).kind, 'none'); // her listing, no website, near her: nothing
   assert.equal(W.cardLink(saved, [B, Cfar]).kind, 'none'); // saved by a Google Maps link, no listing within 30 m
   assert.equal(W.cardLink(null, listings).kind, 'none');
   assert.equal(W.cardLink(saved, [{...A, web: 'javascript:alert(1)'}]).kind, 'none');
@@ -181,4 +181,53 @@ test('AC-10.4 / W6: the search link never holds anything about Thu\'s saved clin
   }
   const far = W.linkFor({...Cfar, mine: false}, {saved: secret, listings, town: 'Québec'});
   assert.ok(!far.url.includes('Zzsecret') && !far.url.includes('46.8'));
+});
+
+// ---- Fix round 1: QA-W5, QA-W4, QA-W3, PM decision on WR4 ----
+
+test('QA-W5 / AC-9.3: another clinic within 30 m of Thu\'s clinic never gets her website', () => {
+  const mineA = {...C, name: 'Ma Clinique Fictive', web: 'https://macliniquefictive.ca'};
+  const nb = {...at(20, 0), name: 'Clinique Voisine Fictive', web: 'https://voisinefictive.ca'};
+  const nbNoWeb = {...at(20, 0), name: 'Clinique Voisine Fictive Deux'};
+  // QA's reproduction: B 20 m away with its own website shows its own website
+  const r1 = W.linkFor(nb, {saved, listings: [mineA, nb]});
+  assert.deepEqual([r1.kind, r1.label, r1.url], ['site', 'Website: voisinefictive.ca', 'https://voisinefictive.ca']);
+  // without a website: nothing (W11, no search near Thu), never her website
+  assert.equal(W.linkFor(nbNoWeb, {saved, listings: [mineA, nbNoWeb]}).kind, 'none');
+  // Thu's listing without website, neighbour with one: the neighbour keeps its own website
+  const r3 = W.linkFor(nb, {saved, listings: [{...mineA, web: undefined}, nb]});
+  assert.equal(r3.label, 'Website: voisinefictive.ca');
+  // "Use your clinic" centre (marked mine) and the saved clinic itself: her W10 listing's website, as in the card
+  assert.equal(W.linkFor({...saved, mine: true}, {saved, listings: [mineA, nb]}).url, 'https://macliniquefictive.ca');
+  assert.equal(W.linkFor(saved, {saved, listings: [mineA, nb]}).url, 'https://macliniquefictive.ca');
+  // her listing chosen from the suggestions: its own website, which is the card's
+  assert.equal(W.linkFor(mineA, {saved, listings: [mineA, nb]}).url, 'https://macliniquefictive.ca');
+});
+
+test('QA-W4: searchUrl and linkFor never throw on lone surrogates; the bad halves are dropped', () => {
+  for (const t of ['Clinique \ud800', '\udc00 Fake', 'a\ud800\ud800b', '\ud800']) {
+    assert.doesNotThrow(() => W.searchUrl(t));
+  }
+  assert.equal(W.searchUrl('Clinique \ud800'), 'https://www.google.com/search?q=Clinique');
+  assert.equal(W.searchUrl('\ud800'), '');
+  assert.equal(W.searchUrl('Fake \ud83d\ude00 Dental'), 'https://www.google.com/search?q=Fake%20%F0%9F%98%80%20Dental'); // a whole pair is kept
+  const r = W.linkFor({...at(5000, 0), name: 'Clinique Fictive \ud800', address: '1 rue \udc00'}, {town: 'L\u00e9vis\ud800'});
+  assert.deepEqual([r.kind, r.url, r.aria], ['search', 'https://www.google.com/search?q=Clinique%20Fictive%20L%C3%A9vis', 'Search the web for Clinique Fictive']);
+});
+
+test('QA-W3: numeric last host part refused unless a plain IPv4 address; U+0085 and U+FEFF refused', () => {
+  for (const u of ['https://999.999.999.999', 'https://fictive.123', 'https://a.9', 'https://1.2.3', 'https://256.1.1.1',
+    'https://010.1.1.1', 'https://0x7f.1', 'https://a.0x7f', 'https://fictive.ca/\u0085', 'https://fictive.ca/\ufeff',
+    'https://fictive.ca/\u00a0', 'https://fictive.ca/\u2028']) assert.equal(W.safeUrl(u), '', u);
+  for (const u of ['https://192.0.2.1', 'https://0.0.0.0/x', 'https://fictive.ca/\u00e9', 'https://123.fictive.ca'])
+    assert.equal(W.safeUrl(u), u, u);
+});
+
+test('WR4 (PM decision, fix round 1): plurals and English generic names are generic too', () => {
+  for (const n of ['Cliniques dentaires', 'Soins dentaires', 'Centre de soins dentaires', 'Denture Clinic', 'Denture Centre',
+    'Dentures', 'Family Dentistry', 'Family Dental', 'Family Dental Care', 'Dentisterie familiale', 'Clinique dentaire familiale',
+    'Denturiste', 'Family Dental Clinics']) assert.ok(W.isGeneric(n), n);
+  for (const n of ['Fake Family Dentistry', 'Denture Clinic Fictive', 'Cliniques dentaires Fictives']) assert.ok(!W.isGeneric(n), n);
+  assert.equal(W.searchText({name: 'Denture Clinic', address: '7 Fake Street'}, 'Calgary'), 'Denture Clinic 7 Fake Street Calgary');
+  assert.equal(W.searchText({name: 'Family Dentistry'}, 'Calgary'), '');
 });

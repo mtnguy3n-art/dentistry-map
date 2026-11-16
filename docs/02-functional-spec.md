@@ -130,6 +130,12 @@ Examples: `https://www.CliniqueXYZ.ca/fr/accueil` → "cliniquexyz.ca"; `https:/
 
 **WR9 — Refresh report (AC-14.2).** Each refresh that rebuilds the listings reports the number of listings with a website, for Canada and for Québec (markets whose id starts with 24). These counts are for Thu and the team only, never shown on the page (CLAUDE.md: pins are never used for counts on the page).
 
+**As-built clarifications (2026-11-15, fix round 1 of increment 2; PM decision and QA-W3 to QA-W5)**
+- **WR4 generic words, extended (PM decision):** besides the list above, these words also count as generic: dentaires, cliniques, clinics, centres, centers, offices, cabinets, soin, denturists, denturiste, denturistes, denturologistes, denture, dentures, family, familiale, familial, dentisterie, and, et. So "Cliniques dentaires", "Soins dentaires", "Denture Clinic", "Denture Centre", "Family Dentistry", "Family Dental Care" and "Dentisterie familiale" are searched with their address (or get "Website not listed" without one). Still not generic: "Fake Family Dentistry", "Denture Clinic Fictive".
+- **WR6 "Centre that is Thu's clinic" (QA-W5):** means the "Use your clinic" centre (her saved point) or her own W10 listing, not any listing within 30 m. Another clinic in her building chosen as the centre shows its own website, or nothing (W11 still applies: no search within 100 m). Thu's website is never shown under another clinic's name (AC-9.3).
+- **WR1 / WR1b, same rule in both places (QA-W3):** a host whose last part is a number (all digits, or "0x" hex) is refused unless it is a plain dotted IPv4 address (four numbers 0 to 255 without leading zeros). Spaces and control characters are one explicit list in both the refresh and the page: ASCII space and control characters, U+0080 to U+00A0 (including U+0085), the Unicode spaces U+1680, U+2000 to U+200A, U+2028, U+2029, U+202F, U+205F, U+3000, and U+FEFF; plus backslash. None of the 1,692 stored websites changes.
+- **WR5 (QA-W4):** half of a broken Unicode character pair (a lone surrogate) in the name, address or town is dropped from the search text, so the search link can always be built.
+
 ## 2.3 Data
 
 | Entity | Fields | Where it lives | Patient data? |

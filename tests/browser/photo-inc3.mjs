@@ -50,11 +50,13 @@ const B = '46.81239,-71.22778'; /* Centre Dentaire Charest, Quebec City: no Pano
 // 1. A clinic with a photo: loading, then photo with credit, note and links
 await go(`?hub=${A}#competition`);
 const s1 = await until((v) => v.text.startsWith('Loading photo') || !!v.img);
+/* iteration 2 appends the website part (spec 2.1.1) after "View on Google Maps"; the photo part must stay as it was (AC-9.5) */
+const photoPart = (t) => t.replace(/ · (Website: \S+|Website not listed( · Search the web)?)$/, '');
 check('AC-1.5 loading text first', s1.text.startsWith('Loading photo...') && s1.links.some((l) => l.t === 'View on Google Maps'), s1.text);
 const s2 = await until((v) => v.img && !v.img.hidden);
 check('AC-1.1 photo shown once loaded, never broken', !!s2.img && !s2.img.hidden && s2.img.complete && s2.img.w > 0, s2.img);
 check('AC-7.3 alt text', s2.img && s2.img.alt === 'Street view of Centre Dentaire Gagné Rémillard', s2.img && s2.img.alt);
-check('AC-6.1/6.2 credit, licence, date, note', /^Photo: \S.* via Panoramax, \S+ · Photo taken [A-Z][a-z]+ \d{4} · The photo shows the location, not necessarily the clinic's current sign\. · View on Google Maps$/.test(s2.text), s2.text);
+check('AC-6.1/6.2 credit, licence, date, note', /^Photo: \S.* via Panoramax, \S+ · Photo taken [A-Z][a-z]+ \d{4} · The photo shows the location, not necessarily the clinic's current sign\. · View on Google Maps$/.test(photoPart(s2.text)), s2.text);
 const px = s2.links.find((l) => l.t === 'Panoramax');
 check('R5 Panoramax links to the photo page, new tab, noreferrer', !!px && /^https:\/\/api\.panoramax\.xyz\/#focus=pic&pic=[0-9a-f-]{36}$/.test(px.href) && px.target === '_blank' && /noreferrer/.test(px.rel), px);
 check('Image requested with no-referrer', s2.img && s2.img.rp === 'no-referrer', s2.img && s2.img.rp);
@@ -88,7 +90,7 @@ await send('Emulation.setEmulatedMedia', {features: [{name: 'prefers-color-schem
 // 3. Clinic with no photo nearby
 await go(`?hub=${B}#competition`);
 const s3 = await until((v) => v.text.startsWith('Photo not available'));
-check('AC-3.1 no photo nearby: "Photo not available" + link', s3.text === 'Photo not available · View on Google Maps' && !s3.img, s3.text);
+check('AC-3.1 no photo nearby: "Photo not available" + link', photoPart(s3.text) === 'Photo not available · View on Google Maps' && !s3.img, s3.text);
 
 // 4. Fast switching: pick A (slow, held), then B at once; A's late answer must not appear
 events.length = 0;
@@ -102,14 +104,14 @@ await wait(300);
 for (const r of held.splice(0)) send('Fetch.continueRequest', {requestId: r}); /* now let the old answer arrive */
 await wait(4000);
 const s4 = await evalJs(block);
-check('AC-1.2 late answer for the old clinic is not shown', s4.text === 'Photo not available · View on Google Maps' && !s4.img, s4.text);
+check('AC-1.2 late answer for the old clinic is not shown', photoPart(s4.text) === 'Photo not available · View on Google Maps' && !s4.img, s4.text);
 
 // 5. Source fails: "Photo not available", no error from page code
 events.length = 0;
 panoramaxMode = 'fail';
 await go(`?hub=45.39902,-71.90374#competition`); /* Dr. Denis Bernard, Sherbrooke */
 const s5 = await until((v) => v.text.startsWith('Photo not available'));
-check('AC-3.2 source down: "Photo not available"', s5.text === 'Photo not available · View on Google Maps' && !s5.img, s5.text);
+check('AC-3.2 source down: "Photo not available"', photoPart(s5.text) === 'Photo not available · View on Google Maps' && !s5.img, s5.text);
 
 // 6. Source too slow: after 10 s, "Photo not available"
 panoramaxMode = 'hold';
@@ -117,7 +119,7 @@ await go(`?hub=45.28205,-72.12311#competition`); /* Dr. Rejean Tremblay, Magog *
 await until((v) => v.text.startsWith('Loading photo'));
 const t6 = Date.now();
 const s6 = await until((v) => v.text.startsWith('Photo not available'), 14000);
-check('R4 slow source: "Photo not available" after about 10 s', s6.text === 'Photo not available · View on Google Maps' && Date.now() - t6 > 8000, {ms: Date.now() - t6});
+check('R4 slow source: "Photo not available" after about 10 s', photoPart(s6.text) === 'Photo not available · View on Google Maps' && Date.now() - t6 > 8000, {ms: Date.now() - t6});
 for (const r of held.splice(0)) send('Fetch.failRequest', {requestId: r, errorReason: 'Aborted'});
 panoramaxMode = 'live';
 const pageErrors = events.filter((e) => e.method === 'Runtime.exceptionThrown' || (e.method === 'Runtime.consoleAPICalled' && ['error', 'warning'].includes(e.params.type)));

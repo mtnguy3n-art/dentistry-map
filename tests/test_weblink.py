@@ -97,6 +97,20 @@ class CleanWebsite(unittest.TestCase):
         for v in ('https://xyz.ca/\x07bell', 'https://xyz.ca\x00', 'https://xyz.ca/\x7f'):
             self.check({'website': v}, None)
 
+    def test_numeric_last_host_part(self):
+        """QA-W3: same rule as the page: a host ending in a number is refused unless it is a plain IPv4 address."""
+        for v in ('https://999.999.999.999', 'https://fictive.123', 'https://a.9', 'https://1.2.3', 'https://256.1.1.1',
+                  'https://010.1.1.1', 'https://0x7f.1', 'https://a.0x7f'):
+            self.check({'website': v}, None)
+        for v in ('https://192.0.2.1/', 'https://0.0.0.0', 'https://123.fictive.ca'):
+            self.check({'website': v}, v)
+
+    def test_unicode_spaces_and_bom_refused(self):
+        """QA-W3: U+0085, U+FEFF, U+00A0 and U+2028 refused inside a value, as in the page."""
+        for v in ('https://xyz.ca/a\u0085b', 'https://xyz.ca/\ufeff', 'https://xyz.ca/a\u00a0b', 'https://xyz.ca/a\u2028b'):
+            self.check({'website': v}, None)
+        self.check({'website': 'https://xyz.ca/\u00e9'}, 'https://xyz.ca/\u00e9')
+
 
 class Counts(unittest.TestCase):
     """WR9 (AC-14.2): counts for Canada and Québec (market ids starting with 24)."""
